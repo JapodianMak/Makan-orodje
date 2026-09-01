@@ -122,6 +122,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
 .mat-photo{width:100%;border-radius:var(--R);margin-top:10px;max-height:220px;object-fit:cover}
 .mat-total{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #2A2D31;font-size:0.95rem}
 .admin-strip{background:var(--wn);color:#fff;text-align:center;font-size:0.78rem;font-weight:700;padding:5px;letter-spacing:1px}
+/* SVETLA TEMA (C) */
+body.light{--k:#F5F2ED;--tx:#1C1917;--tx2:#57534E;--brd:#E4DED4;--sur:#fff;--sur2:#fff;--dark:#1C1917;--S:0 1px 4px rgba(28,25,23,.06)}
+body.light .header{background:#1C1917;border-bottom:none}
+body.light .modal{background:#fff}
+body.light .modal h2{color:#1C1917}
+body.light .btn-primary{background:#1C1917;color:#fff}
+body.light .btn-rumena{background:#EAE4DB;color:#1C1917}
+body.light .btn-outline{background:#fff;color:#1C1917;border-color:#D6CFC5}
+body.light .scan-area{background:#fff;color:#1C1917}
+body.light .scan-area p{color:#57534E}
+body.light .scan-area h2{color:#1C1917}
+body.light #reader,body.light #inv-reader{border-color:#D6CFC5!important}
+body.light .tab.active{background:#1C1917;color:#fff;border-color:#1C1917}
+body.light .loc-btn.selected{background:#1C1917;color:#fff;border-color:#1C1917}
+body.light .list-item.warning{background:#FFF9F0}
+body.light .list-item.servis{background:#FDF4F3}
+body.light .list-item .item-badge{background:#1C1917;color:#fff}
+body.light .history-item{border-bottom-color:#EDE7DD}
+body.light .setting-row{border-bottom-color:#EDE7DD}
+body.light .mat-total{border-bottom-color:#EDE7DD}
+body.light .pin-pad button:active{background:#1C1917;color:#fff}
+body.light .pin-dots span{border-color:#57534E}
+body.light .pin-dots span.full{background:#1C1917}
+body.light .form-group input,body.light .form-group select,body.light .form-group textarea{color-scheme:light}
+body.light .tool-display{border-left-color:#1C1917}
 </style>
 </head>
 <body>
@@ -214,6 +239,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
   <div class="card">
     <div class="card-title" data-i18n="language">Jezik</div>
     <div class="tabs"><button class="tab" id="lang-sl">SLO</button><button class="tab" id="lang-bih">BIH</button></div>
+    <div class="card-title" style="margin-top:14px" data-i18n="theme">Tema</div>
+    <div class="tabs"><button class="tab" id="theme-dark" data-i18n="themeDark">TEMNA</button><button class="tab" id="theme-light" data-i18n="themeLight">SVETLA</button></div>
   </div>
   <div class="card">
     <div class="card-title" data-i18n="locations">Lokacije</div><div id="settings-locations"></div>
@@ -446,7 +473,7 @@ sl: {
   addTool:"DODAJ NOVO ORODJE", printQR:"NATISNI QR NALEPIKE", toolList:"Seznam orodja", damagedTitle:"Poškodovana orodja",
   addMat:"NOV VNOS MATERIALA", matTotals:"Seštevek po gradbiščih", matEntries:"Vnosi", exportCSV:"IZVOZI CSV (material)",
   thisPhone:"Ta telefon", boundTo:"Vezan na delavca", boundNote:"Ob skeniranju se to ime avtomatsko zabeleži kot izvajalec premika.",
-  language:"Jezik", locations:"Lokacije", workers:"Delavci", newLocPh:"Ime nove lokacije...", newWorkerPh:"Ime delavca...",
+  language:"Jezik", theme:"Tema", themeDark:"TEMNA", themeLight:"SVETLA", locations:"Lokacije", workers:"Delavci", newLocPh:"Ime nove lokacije...", newWorkerPh:"Ime delavca...",
   addLoc:"Dodaj lokacijo", addWorker:"Dodaj delavca", warnings:"Opozorila", warnLabel:"Orodje na objektu več kot", days:"dni",
   security:"Varnost", changePin:"Spremeni admin PIN", geminiKey:"Gemini AI ključ (za branje dobavnic)", lockNow:"Zakleni admin način",
   backup:"Varnostna kopija", exportJSON:"IZVOZI JSON", importLabel:"Uvozi JSON (doda podatke v bazo)",
@@ -492,7 +519,7 @@ bih: {
   addTool:"DODAJ NOVI ALAT", printQR:"ODŠTAMPAJ QR NALJEPKE", toolList:"Spisak alata", damagedTitle:"Oštećeni alati",
   addMat:"NOVI UNOS MATERIJALA", matTotals:"Ukupno po gradilištima", matEntries:"Unosi", exportCSV:"IZVEZI CSV (materijal)",
   thisPhone:"Ovaj telefon", boundTo:"Veza za radnika", boundNote:"Prilikom skeniranja se ovo ime automatski zabilježi kao izvršilac premještaja.",
-  language:"Jezik", locations:"Lokacije", workers:"Radnici", newLocPh:"Ime nove lokacije...", newWorkerPh:"Ime radnika...",
+  language:"Jezik", theme:"Tema", themeDark:"TAMNA", themeLight:"SVJETLA", locations:"Lokacije", workers:"Radnici", newLocPh:"Ime nove lokacije...", newWorkerPh:"Ime radnika...",
   addLoc:"Dodaj lokaciju", addWorker:"Dodaj radnika", warnings:"Upozorenja", warnLabel:"Alat na objektu duže od", days:"dana",
   security:"Sigurnost", changePin:"Promijeni admin PIN", geminiKey:"Gemini AI ključ (za čitanje dostavnica)", lockNow:"Zaključaj admin način",
   backup:"Sigurnosna kopija", exportJSON:"IZVEZI JSON", importLabel:"Uvezi JSON (doda podatke u bazu)",
@@ -539,6 +566,10 @@ function applyI18n(){
   document.getElementById("lang-bih").classList.toggle("active", LANG==="bih");
 }
 document.getElementById("lang-sl").addEventListener("click",()=>{ LANG="sl"; localStorage.setItem("makan_lang",LANG); applyI18n(); renderAll(); });
+// ===== TEMA =====
+function applyTheme(){ const th=localStorage.getItem("makan_theme")||"dark"; document.body.classList.toggle("light",th==="light"); document.getElementById("theme-dark").classList.toggle("active",th!=="light"); document.getElementById("theme-light").classList.toggle("active",th==="light"); }
+document.getElementById("theme-dark").addEventListener("click",()=>{ localStorage.setItem("makan_theme","dark"); applyTheme(); });
+document.getElementById("theme-light").addEventListener("click",()=>{ localStorage.setItem("makan_theme","light"); applyTheme(); });
 document.getElementById("lang-bih").addEventListener("click",()=>{ LANG="bih"; localStorage.setItem("makan_lang",LANG); applyI18n(); renderAll(); });
 
 // ===== STATE =====
@@ -1222,7 +1253,7 @@ function invBack(){
 // ===== RENDER ALL + INIT =====
 function renderAll(){ renderL(); renderO(); renderSet(); renderMat(); }
 document.querySelectorAll(".modal-overlay").forEach(m=>{ m.addEventListener("click",function(e){ if(e.target===this) this.classList.remove("active"); }); });
-applyI18n(); applyMode(); listen(); initScan();
+applyTheme(); applyI18n(); applyMode(); listen(); initScan();
 </script>
 <script>
 // Service worker + samodejna posodobitev
