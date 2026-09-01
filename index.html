@@ -229,6 +229,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
   </div>
 </div>
 
+<!-- IZPOSOJA -->
+<div class="modal-overlay" id="modal-izposoja">
+  <div class="modal">
+    <h2>🤝 <span data-i18n="lendTitle">Izposodi orodje</span></h2>
+    <div class="tool-display" id="izposoja-tool-info"></div>
+    <div class="form-group"><label data-i18n="lendTo">Komu izposodiš</label><input type="text" id="izposoja-komu" list="izposoja-podjetja" data-i18n-ph="lendToPh" placeholder="Podjetje ali oseba..."><datalist id="izposoja-podjetja"></datalist></div>
+    <div class="form-group"><label data-i18n="note">Opomba (neobvezno)</label><textarea id="izposoja-note" rows="2" data-i18n-ph="lendNotePh" placeholder="Npr. do petka, tel. št..."></textarea></div>
+    <button class="btn btn-success" id="btn-izposoja-confirm">🤝 <span data-i18n="lendConfirm">POTRDI IZPOSOJO</span></button>
+    <button class="btn btn-outline" id="btn-izposoja-cancel" style="margin-top:8px" data-i18n="cancel">Prekliči</button>
+  </div>
+</div>
+
 <!-- MODAL: NOVO ORODJE -->
 <div class="modal-overlay" id="modal-add-tool">
   <div class="modal">
@@ -383,6 +395,7 @@ sl: {
   warnTools:"orodij na objektu več kot", noTools:"Ni orodja za prikaz", emptyTools:"Še ni orodja. Dodaj prvo orodje.",
   emptyHistory:"Še ni premikov za to orodje.", servisReport:"Prijavi servis", backInUse:"Nazaj v uporabo",
   servisSaved:"Servis prijavljen", repairedSaved:"Orodje je nazaj v uporabi", onService:"NA SERVISU",
+  izposojeno:"IZPOSOJENO", lendTitle:"Izposodi orodje", lendTo:"Komu izposodiš", lendToPh:"Podjetje ali oseba...", lendNotePh:"Npr. do petka, tel. št...", lendConfirm:"POTRDI IZPOSOJO", lentAt:"izposojeno pri", lentSaved:"Izposojeno", lentAlready:"To orodje je že izposojeno!",
   phoneNotBound:"Telefon NI vezan na delavca!", callAdmin:"Pokliči šefa, naj telefon veže nate (Nastavitve).",
   boundAs:"Skenira", selectWorker:"Izberi delavca", wrongPin:"Napačen PIN!", adminOn:"Admin način vklopljen",
   adminOff:"Admin način zaklenjen", pinChanged:"PIN spremenjen", newPinPrompt:"Vnesi NOV 4-mestni PIN:",
@@ -423,6 +436,7 @@ bih: {
   warnTools:"alata na objektu duže od", noTools:"Nema alata za prikaz", emptyTools:"Još nema alata. Dodaj prvi alat.",
   emptyHistory:"Još nema premještaja za ovaj alat.", servisReport:"Prijavi servis", backInUse:"Nazad u upotrebu",
   servisSaved:"Servis prijavljen", repairedSaved:"Alat je nazad u upotrebi", onService:"NA SERVISU",
+  izposojeno:"POSUĐENO", lendTitle:"Posudi alat", lendTo:"Kome posuđuješ", lendToPh:"Firma ili osoba...", lendNotePh:"Npr. do petka, br. tel...", lendConfirm:"POTVRDI POSUDBU", lentAt:"posuđeno kod", lentSaved:"Posuđeno", lentAlready:"Ovaj alat je već posuđen!",
   phoneNotBound:"Telefon NIJE vezan za radnika!", callAdmin:"Zovi šefa da veže telefon za tebe (Postavke).",
   boundAs:"Skenira", selectWorker:"Odaberi radnika", wrongPin:"Pogrešan PIN!", adminOn:"Admin način uključen",
   adminOff:"Admin način zaključan", pinChanged:"PIN promijenjen", newPinPrompt:"Unesi NOVI 4-cifreni PIN:",
@@ -528,7 +542,7 @@ function closeModal(id){ if(id) $(id).classList.remove("active"); }
 function toast(msg,type){ const el=$("toast"); el.textContent=msg; el.className="toast show "+(type==="error"?"error":type==="warn"?"warn":""); setTimeout(()=>el.classList.remove("show"),3000); }
 function pad(n){ return n.toString().padStart(2,"0"); }
 function fmtDate(iso){ if(!iso) return "-"; const d=new Date(iso), n=new Date(), diff=Math.floor((n-d)/86400000); if(diff===0)return t("today")+" "+pad(d.getHours())+":"+pad(d.getMinutes()); if(diff===1)return t("yesterday")+" "+pad(d.getHours())+":"+pad(d.getMinutes()); return d.getDate()+"."+(d.getMonth()+1)+". "+pad(d.getHours())+":"+pad(d.getMinutes()); }
-function locName(id){ const l=D.lokacije.find(l=>l.id===id); return l?l.naziv:(id||"?"); }
+function locName(id){ if(id==="izposojeno") return t("izposojeno"); const l=D.lokacije.find(l=>l.id===id); return l?l.naziv:(id||"?"); }
 function workerName(id){ const w=D.delavci.find(w=>w.id===id); return w?w.ime:(id||"?"); }
 function getLoc(oid){ const m=D.dogodki.find(d=>d.orodjeId===oid && d.tip!=="servis" && d.tip!=="popravilo"); if(m) return m.naLokacijoId; const tool=D.orodja.find(o=>o.id===oid); return tool?.defaultLocation||"skladiste"; }
 function getLast(oid){ return D.dogodki.find(d=>d.orodjeId===oid); }
@@ -626,6 +640,34 @@ $("btn-premik-confirm").addEventListener("click",async ()=>{
 });
 $("btn-premik-cancel").addEventListener("click",()=>closeModal("modal-premik"));
 
+// ===== IZPOSOJA =====
+let izpTool=null;
+function openIzposoja(toolId){
+  const tool=D.orodja.find(o=>o.id===toolId); if(!tool) return;
+  izpTool=toolId;
+  $("izposoja-tool-info").innerHTML="<div class='tool-name'>"+tool.naziv+"</div><div class='tool-detail'>"+(tool.tip||"")+"</div>";
+  $("izposoja-podjetja").innerHTML=(META.podjetja||[]).map(p=>"<option value='"+p+"'>").join("");
+  $("izposoja-komu").value=""; $("izposoja-note").value="";
+  openModal("modal-izposoja");
+  setTimeout(()=>$("izposoja-komu").focus(),100);
+}
+$("btn-izposoja-cancel").addEventListener("click",()=>closeModal("modal-izposoja"));
+$("btn-izposoja-confirm").addEventListener("click",async ()=>{
+  const komu=$("izposoja-komu").value.trim();
+  if(!komu){ toast(t("fillAll"),"error"); return; }
+  const tool=D.orodja.find(o=>o.id===izpTool); if(!tool) return;
+  const note=$("izposoja-note").value.trim();
+  const fl=getLoc(tool.id);
+  if(fl==="izposojeno"){ toast(t("lentAlready"),"warn"); closeModal("modal-izposoja"); return; }
+  await addDoc(collection(db,"dogodki"),{tip:"premik",orodjeId:tool.id,izLokacijeId:fl,naLokacijoId:"izposojeno",izposojaKomu:komu,datum:new Date().toISOString(),delavecId:deviceWorker()||"",opomba:note});
+  // zapomni si podjetje za naslednjič
+  const pj=[...(META.podjetja||[])];
+  if(!pj.includes(komu)){ pj.push(komu); setDoc(doc(db,"meta","settings"),{podjetja:pj},{merge:true}); }
+  closeModal("modal-izposoja");
+  toast("🤝 "+tool.naziv+" → "+komu);
+  playBeep();
+});
+
 // ===== KJE JE KAJ =====
 function renderL(){
   const tabsEl=$("location-tabs");
@@ -634,6 +676,8 @@ function renderL(){
     const n=D.orodja.filter(o=>getLoc(o.id)===l.id).length;
     return "<button class='tab "+(actTab===l.id?"active":"")+"' data-tab='"+l.id+"'>"+l.naziv+" <span class='cnt'>("+n+")</span></button>";
   }).join("");
+  const nIzp=D.orodja.filter(o=>getLoc(o.id)==="izposojeno").length;
+  if(nIzp>0) h+="<button class='tab "+(actTab==="izposojeno"?"active":"")+"' data-tab='izposojeno'>🤝 "+t("izposojeno")+" <span class='cnt'>("+nIzp+")</span></button>";
   tabsEl.innerHTML=h;
   document.querySelectorAll("#location-tabs .tab").forEach(tab=>tab.addEventListener("click",function(){ actTab=this.getAttribute("data-tab"); renderL(); }));
   const q=$("search-tools").value.toLowerCase();
@@ -649,8 +693,10 @@ function renderL(){
     const lt=o.last?(o.last.tip==="premik"?locName(o.last.naLokacijoId)+", ":"")+fmtDate(o.last.datum):t("noMoves");
     const wr=o.last&&o.last.delavecId?workerName(o.last.delavecId):"";
     const cls=o.status==="servis"?"servis":(wn?"warning":"");
-    const badge=o.status==="servis"?"<span class='item-badge red'>🔧 "+t("onService")+"</span>":(wn?"<span class='item-badge yellow'>⚠️ "+o.days+"d</span>":"<span class='item-badge'>"+ln+"</span>");
-    html+="<div class='list-item "+cls+"' data-tool='"+o.id+"'><div class='item-info'><div class='item-title'>🔧 "+o.naziv+(o.tip?" ("+o.tip+")":"")+"</div><div class='item-sub'>"+(o.serijska?"Inv. "+o.serijska+" • ":"")+"QR: "+o.qr+"</div><div class='item-sub'>📍 "+ln+(wr?" • "+wr:"")+"</div><div class='item-sub'>"+t("last")+": "+lt+"</div></div><div>"+badge+"</div></div>";
+    const isIzp=o.loc==="izposojeno";
+    const komu=isIzp&&o.last&&o.last.izposojaKomu?o.last.izposojaKomu:"";
+    const badge=o.status==="servis"?"<span class='item-badge red'>🔧 "+t("onService")+"</span>":(isIzp?"<span class='item-badge'>🤝 "+(komu||t("izposojeno"))+"</span>":(wn?"<span class='item-badge yellow'>⚠️ "+o.days+"d</span>":"<span class='item-badge'>"+ln+"</span>"));
+    html+="<div class='list-item "+cls+"' data-tool='"+o.id+"'><div class='item-info'><div class='item-title'>🔧 "+o.naziv+(o.tip?" ("+o.tip+")":"")+"</div><div class='item-sub'>"+(o.serijska?"Inv. "+o.serijska+" • ":"")+"QR: "+o.qr+"</div><div class='item-sub'>"+(isIzp?"🤝 "+t("lentAt")+" <b>"+komu+"</b>":"📍 "+ln+(wr?" • "+wr:""))+"</div><div class='item-sub'>"+t("last")+": "+lt+"</div></div><div>"+badge+"</div></div>";
   }
   if(!html) html="<div class='empty'><div class='icon'>📭</div><p>"+t("noTools")+"</p></div>";
   $("tools-list").innerHTML=html;
@@ -671,7 +717,8 @@ function renderO(){
   const l=$("tools-all-list");
   if(D.orodja.length===0){ l.innerHTML="<div class='empty'><div class='icon'>🔧</div><p>"+t("emptyTools")+"</p></div>"; }
   else {
-    l.innerHTML=D.orodja.map(o=>{ const loc=getLoc(o.id); return "<div class='list-item "+(o.status==="servis"?"servis":"")+"' data-tool='"+o.id+"'><div class='item-info'><div class='item-title'>"+o.naziv+(o.tip?" ("+o.tip+")":"")+(o.status==="servis"?" 🔧":"")+"</div><div class='item-sub'>"+(o.serijska?"Inv. "+o.serijska+" • ":"")+"QR: "+o.qr+"</div><div class='item-sub'>📍 "+locName(loc)+"</div></div><div style='display:flex;gap:6px;align-items:center'><button class='btn btn-danger btn-sm' data-del-tool='"+o.id+"'>🗑️</button></div></div>"; }).join("");
+    l.innerHTML=D.orodja.map(o=>{ const loc=getLoc(o.id); const last=getLast(o.id); const komu=loc==="izposojeno"&&last&&last.izposojaKomu?last.izposojaKomu:""; return "<div class='list-item "+(o.status==="servis"?"servis":"")+"' data-tool='"+o.id+"'><div class='item-info'><div class='item-title'>"+o.naziv+(o.tip?" ("+o.tip+")":"")+(o.status==="servis"?" 🔧":"")+"</div><div class='item-sub'>"+(o.serijska?"Inv. "+o.serijska+" • ":"")+"QR: "+o.qr+"</div><div class='item-sub'>"+(loc==="izposojeno"?"🤝 "+t("lentAt")+" <b>"+komu+"</b>":"📍 "+locName(loc))+"</div></div><div style='display:flex;gap:6px;align-items:center'><button class='btn btn-rumena btn-sm' data-lend-tool='"+o.id+"'>🤝</button><button class='btn btn-danger btn-sm' data-del-tool='"+o.id+"'>🗑️</button></div></div>"; }).join("");
+    document.querySelectorAll("[data-lend-tool]").forEach(b=>b.addEventListener("click",function(e){ e.stopPropagation(); openIzposoja(this.getAttribute("data-lend-tool")); }));
     document.querySelectorAll("[data-del-tool]").forEach(b=>b.addEventListener("click",async function(e){ e.stopPropagation(); if(!confirm(t("delTool"))) return; await deleteDoc(doc(db,"orodja",this.getAttribute("data-del-tool"))); }));
   }
   document.querySelectorAll("#tools-all-list .list-item[data-tool], #servis-list .list-item[data-tool]").forEach(el=>el.addEventListener("click",function(){ openZgod(this.getAttribute("data-tool")); }));
