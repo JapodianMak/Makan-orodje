@@ -241,6 +241,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
   </div>
 </div>
 
+<!-- GARANCIJA -->
+<div class="modal-overlay" id="modal-garancija">
+  <div class="modal">
+    <h2>🛡️ <span data-i18n="warrantyTitle">Garancija</span></h2>
+    <div class="tool-display" id="garancija-tool-info"></div>
+    <div class="form-group"><label data-i18n="warrantyUntil">Garancija velja do</label><input type="date" id="garancija-date"></div>
+    <button class="btn btn-success" id="btn-garancija-save">💾 <span data-i18n="warrantySave">SHRANI GARANCIJO</span></button>
+    <button class="btn btn-outline" id="btn-garancija-clear" style="margin-top:8px" data-i18n="warrantyRemove">Odstrani garancijo</button>
+    <button class="btn btn-outline" id="btn-garancija-cancel" style="margin-top:8px" data-i18n="cancel">Prekliči</button>
+  </div>
+</div>
+
 <!-- MODAL: NOVO ORODJE -->
 <div class="modal-overlay" id="modal-add-tool">
   <div class="modal">
@@ -250,6 +262,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
     <div class="form-group"><label data-i18n="fSerial">Serijska / Inventarna št.</label><input type="text" id="tool-serijska" placeholder="npr. 10247"></div>
     <div class="form-group"><label><span data-i18n="fQR">QR koda (enolična)</span> *</label><input type="text" id="tool-qr" placeholder="npr. HILTI-10247"><small id="qr-check" style="color:var(--er);display:none" data-i18n="qrExists">Ta QR koda že obstaja!</small></div>
     <div class="form-group"><label data-i18n="fStartLoc">Začetna lokacija</label><select id="tool-lokacija"></select></div>
+    <div class="form-group"><label data-i18n="fWarranty">Garancija do (neobvezno)</label><input type="date" id="tool-garancija"></div>
     <button class="btn btn-primary" id="btn-save-tool">💾 <span data-i18n="saveTool">Shrani orodje</span></button>
     <button class="btn btn-outline" id="btn-cancel-add" style="margin-top:8px" data-i18n="cancel">Prekliči</button>
   </div>
@@ -396,6 +409,7 @@ sl: {
   emptyHistory:"Še ni premikov za to orodje.", servisReport:"Prijavi servis", backInUse:"Nazaj v uporabo",
   servisSaved:"Servis prijavljen", repairedSaved:"Orodje je nazaj v uporabi", onService:"NA SERVISU",
   izposojeno:"IZPOSOJENO", lendTitle:"Izposodi orodje", lendTo:"Komu izposodiš", lendToPh:"Podjetje ali oseba...", lendNotePh:"Npr. do petka, tel. št...", lendConfirm:"POTRDI IZPOSOJO", lentAt:"izposojeno pri", lentSaved:"Izposojeno", lentAlready:"To orodje je že izposojeno!",
+  fWarranty:"Garancija do (neobvezno)", warrantyTitle:"Garancija", warrantyUntil:"Garancija velja do", warrantySave:"SHRANI GARANCIJO", warrantyRemove:"Odstrani garancijo", warrantyExp:"GARANCIJA POTEČE", warrantyValid:"garancija do", warrantyCard:"Garancije, ki potečejo (60 dni)", warrantySaved:"Garancija shranjena", setWarranty:"Nastavi garancijo",
   phoneNotBound:"Telefon NI vezan na delavca!", callAdmin:"Pokliči šefa, naj telefon veže nate (Nastavitve).",
   boundAs:"Skenira", selectWorker:"Izberi delavca", wrongPin:"Napačen PIN!", adminOn:"Admin način vklopljen",
   adminOff:"Admin način zaklenjen", pinChanged:"PIN spremenjen", newPinPrompt:"Vnesi NOV 4-mestni PIN:",
@@ -437,6 +451,7 @@ bih: {
   emptyHistory:"Još nema premještaja za ovaj alat.", servisReport:"Prijavi servis", backInUse:"Nazad u upotrebu",
   servisSaved:"Servis prijavljen", repairedSaved:"Alat je nazad u upotrebi", onService:"NA SERVISU",
   izposojeno:"POSUĐENO", lendTitle:"Posudi alat", lendTo:"Kome posuđuješ", lendToPh:"Firma ili osoba...", lendNotePh:"Npr. do petka, br. tel...", lendConfirm:"POTVRDI POSUDBU", lentAt:"posuđeno kod", lentSaved:"Posuđeno", lentAlready:"Ovaj alat je već posuđen!",
+  fWarranty:"Garancija do (opcionalno)", warrantyTitle:"Garancija", warrantyUntil:"Garancija važi do", warrantySave:"SAČUVAJ GARANCIJU", warrantyRemove:"Ukloni garanciju", warrantyExp:"GARANCIJA ISTEKLA", warrantyValid:"garancija do", warrantyCard:"Garancije koje istječu (60 dana)", warrantySaved:"Garancija sačuvana", setWarranty:"Postavi garanciju",
   phoneNotBound:"Telefon NIJE vezan za radnika!", callAdmin:"Zovi šefa da veže telefon za tebe (Postavke).",
   boundAs:"Skenira", selectWorker:"Odaberi radnika", wrongPin:"Pogrešan PIN!", adminOn:"Admin način uključen",
   adminOff:"Admin način zaključan", pinChanged:"PIN promijenjen", newPinPrompt:"Unesi NOVI 4-cifreni PIN:",
@@ -717,14 +732,16 @@ function renderO(){
   const l=$("tools-all-list");
   if(D.orodja.length===0){ l.innerHTML="<div class='empty'><div class='icon'>🔧</div><p>"+t("emptyTools")+"</p></div>"; }
   else {
-    l.innerHTML=D.orodja.map(o=>{ const loc=getLoc(o.id); const last=getLast(o.id); const komu=loc==="izposojeno"&&last&&last.izposojaKomu?last.izposojaKomu:""; return "<div class='list-item "+(o.status==="servis"?"servis":"")+"' data-tool='"+o.id+"'><div class='item-info'><div class='item-title'>"+o.naziv+(o.tip?" ("+o.tip+")":"")+(o.status==="servis"?" 🔧":"")+"</div><div class='item-sub'>"+(o.serijska?"Inv. "+o.serijska+" • ":"")+"QR: "+o.qr+"</div><div class='item-sub'>"+(loc==="izposojeno"?"🤝 "+t("lentAt")+" <b>"+komu+"</b>":"📍 "+locName(loc))+"</div></div><div style='display:flex;gap:6px;align-items:center'><button class='btn btn-rumena btn-sm' data-lend-tool='"+o.id+"'>🤝</button><button class='btn btn-danger btn-sm' data-del-tool='"+o.id+"'>🗑️</button></div></div>"; }).join("");
+    l.innerHTML=D.orodja.map(o=>{ const loc=getLoc(o.id); const last=getLast(o.id); const komu=loc==="izposojeno"&&last&&last.izposojaKomu?last.izposojaKomu:"";
+      let gar=""; if(o.garancijaDo){ const dLeft=Math.ceil((new Date(o.garancijaDo)-Date.now())/86400000); gar=dLeft<0?"<div class='item-sub' style='color:var(--er);font-weight:700'>🛡️ "+t("warrantyExp")+" ("+o.garancijaDo+")</div>":dLeft<=60?"<div class='item-sub' style='color:var(--wn);font-weight:700'>🛡️ "+t("warrantyValid")+" "+o.garancijaDo+" ("+dLeft+"d)</div>":"<div class='item-sub'>🛡️ "+t("warrantyValid")+" "+o.garancijaDo+"</div>"; }
+      return "<div class='list-item "+(o.status==="servis"?"servis":"")+"' data-tool='"+o.id+"'><div class='item-info'><div class='item-title'>"+o.naziv+(o.tip?" ("+o.tip+")":"")+(o.status==="servis"?" 🔧":"")+"</div><div class='item-sub'>"+(o.serijska?"Inv. "+o.serijska+" • ":"")+"QR: "+o.qr+"</div><div class='item-sub'>"+(loc==="izposojeno"?"🤝 "+t("lentAt")+" <b>"+komu+"</b>":"📍 "+locName(loc))+"</div>"+gar+"</div><div style='display:flex;gap:6px;align-items:center'><button class='btn btn-rumena btn-sm' data-lend-tool='"+o.id+"'>🤝</button><button class='btn btn-danger btn-sm' data-del-tool='"+o.id+"'>🗑️</button></div></div>"; }).join("");
     document.querySelectorAll("[data-lend-tool]").forEach(b=>b.addEventListener("click",function(e){ e.stopPropagation(); openIzposoja(this.getAttribute("data-lend-tool")); }));
     document.querySelectorAll("[data-del-tool]").forEach(b=>b.addEventListener("click",async function(e){ e.stopPropagation(); if(!confirm(t("delTool"))) return; await deleteDoc(doc(db,"orodja",this.getAttribute("data-del-tool"))); }));
   }
   document.querySelectorAll("#tools-all-list .list-item[data-tool], #servis-list .list-item[data-tool]").forEach(el=>el.addEventListener("click",function(){ openZgod(this.getAttribute("data-tool")); }));
 }
 $("btn-add-tool").addEventListener("click",()=>{
-  ["tool-naziv","tool-tip","tool-serijska","tool-qr"].forEach(id=>$(id).value="");
+  ["tool-naziv","tool-tip","tool-serijska","tool-qr","tool-garancija"].forEach(id=>$(id).value="");
   $("qr-check").style.display="none";
   $("tool-lokacija").innerHTML=D.lokacije.map(l=>"<option value='"+l.id+"'>"+l.naziv+"</option>").join("");
   openModal("modal-add-tool");
@@ -735,7 +752,7 @@ $("btn-save-tool").addEventListener("click",async ()=>{
   const naziv=$("tool-naziv").value.trim(), qr=$("tool-qr").value.trim();
   if(!naziv||!qr){ toast(t("fillAll"),"error"); return; }
   if(D.orodja.some(o=>o.qr===qr)){ toast(t("qrExists"),"error"); return; }
-  await addDoc(collection(db,"orodja"),{naziv,tip:$("tool-tip").value.trim(),serijska:$("tool-serijska").value.trim(),qr,defaultLocation:$("tool-lokacija").value,status:"ok"});
+  await addDoc(collection(db,"orodja"),{naziv,tip:$("tool-tip").value.trim(),serijska:$("tool-serijska").value.trim(),qr,defaultLocation:$("tool-lokacija").value,garancijaDo:$("tool-garancija").value||"",status:"ok"});
   closeModal("modal-add-tool"); toast("✅ "+t("toolAdded")+": "+naziv);
 });
 
@@ -743,15 +760,17 @@ $("btn-save-tool").addEventListener("click",async ()=>{
 function openZgod(tid){
   const tool=D.orodja.find(o=>o.id===tid); if(!tool) return;
   const loc=getLoc(tid);
-  $("zgodovina-tool-info").innerHTML="<div class='tool-name'>"+tool.naziv+"</div><div class='tool-detail'>"+(tool.tip||"")+(tool.serijska?" • Inv. "+tool.serijska:"")+"</div><div class='tool-loc'>📍 "+t("current")+": "+locName(loc)+"</div>"+(tool.status==="servis"?"<div class='tool-detail' style='color:var(--er);font-weight:700'>🔧 "+t("onService")+": "+(tool.serviceNote||"")+"</div>":"");
+  $("zgodovina-tool-info").innerHTML="<div class='tool-name'>"+tool.naziv+"</div><div class='tool-detail'>"+(tool.tip||"")+(tool.serijska?" • Inv. "+tool.serijska:"")+"</div><div class='tool-loc'>📍 "+t("current")+": "+locName(loc)+"</div>"+(tool.status==="servis"?"<div class='tool-detail' style='color:var(--er);font-weight:700'>🔧 "+t("onService")+": "+(tool.serviceNote||"")+"</div>":"")+(tool.garancijaDo?"<div class='tool-detail'>🛡️ "+t("warrantyValid")+" "+tool.garancijaDo+"</div>":"");
   let act="";
   if(tool.status==="servis"){
     if(isAdmin()) act="<button class='btn btn-success' id='btn-repair'>✅ "+t("backInUse")+"</button>";
   } else {
     act="<button class='btn btn-danger' id='btn-report-servis'>🔧 "+t("servisReport")+"</button>";
   }
+  if(isAdmin()) act+="<button class='btn btn-outline' id='btn-warranty' style='margin-top:6px'>🛡️ "+t("setWarranty")+(tool.garancijaDo?" ("+tool.garancijaDo+")":"")+"</button>";
   $("zgod-actions").innerHTML=act;
   const rs=$("btn-report-servis"); if(rs) rs.addEventListener("click",()=>{ closeModal("modal-zgodovina"); openServis(tool); });
+  const wb2=$("btn-warranty"); if(wb2) wb2.addEventListener("click",()=>{ closeModal("modal-zgodovina"); openGarancija(tool); });
   const rp=$("btn-repair"); if(rp) rp.addEventListener("click",async ()=>{
     await updateDoc(doc(db,"orodja",tid),{status:"ok",serviceNote:"",serviceDate:"",serviceBy:""});
     await addDoc(collection(db,"dogodki"),{tip:"popravilo",orodjeId:tid,datum:new Date().toISOString(),delavecId:deviceWorker(),opomba:t("backInUse")});
@@ -770,6 +789,26 @@ function openZgod(tid){
   openModal("modal-zgodovina");
 }
 $("btn-close-zgod").addEventListener("click",()=>closeModal("modal-zgodovina"));
+
+// ===== GARANCIJA =====
+let garTool=null;
+function openGarancija(tool){
+  garTool=tool.id;
+  $("garancija-tool-info").innerHTML="<div class='tool-name'>"+tool.naziv+"</div><div class='tool-detail'>"+(tool.tip||"")+"</div>";
+  $("garancija-date").value=tool.garancijaDo||"";
+  openModal("modal-garancija");
+}
+$("btn-garancija-cancel").addEventListener("click",()=>closeModal("modal-garancija"));
+$("btn-garancija-save").addEventListener("click",async ()=>{
+  const v=$("garancija-date").value;
+  if(!v){ toast(t("fillAll"),"error"); return; }
+  await updateDoc(doc(db,"orodja",garTool),{garancijaDo:v});
+  closeModal("modal-garancija"); toast("🛡️ "+t("warrantySaved"));
+});
+$("btn-garancija-clear").addEventListener("click",async ()=>{
+  await updateDoc(doc(db,"orodja",garTool),{garancijaDo:""});
+  closeModal("modal-garancija"); toast("🛡️ "+t("warrantyRemove"));
+});
 
 let servisTool=null;
 function openServis(tool){
