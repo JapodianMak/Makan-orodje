@@ -253,6 +253,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
   </div>
 </div>
 
+<!-- PREMIK MATERIALA -->
+<div class="modal-overlay" id="modal-mat-move">
+  <div class="modal">
+    <h2>🔀 <span data-i18n="moveMat">Premakni material</span></h2>
+    <div class="tool-display" id="matmove-info"></div>
+    <div class="form-group"><label data-i18n="moveTo">Kam</label><select id="matmove-target"></select></div>
+    <div class="form-group"><label data-i18n="moveQty">Količina</label><input type="number" id="matmove-qty" step="any" min="0"></div>
+    <button class="btn btn-success" id="btn-matmove-confirm">🔀 <span data-i18n="moveConfirm">POTRDI PREMIK</span></button>
+    <button class="btn btn-outline" id="btn-matmove-cancel" style="margin-top:8px" data-i18n="cancel">Prekliči</button>
+  </div>
+</div>
+
 <!-- MODAL: NOVO ORODJE -->
 <div class="modal-overlay" id="modal-add-tool">
   <div class="modal">
@@ -410,6 +422,7 @@ sl: {
   servisSaved:"Servis prijavljen", repairedSaved:"Orodje je nazaj v uporabi", onService:"NA SERVISU",
   izposojeno:"IZPOSOJENO", lendTitle:"Izposodi orodje", lendTo:"Komu izposodiš", lendToPh:"Podjetje ali oseba...", lendNotePh:"Npr. do petka, tel. št...", lendConfirm:"POTRDI IZPOSOJO", lentAt:"izposojeno pri", lentSaved:"Izposojeno", lentAlready:"To orodje je že izposojeno!",
   fWarranty:"Garancija do (neobvezno)", warrantyTitle:"Garancija", warrantyUntil:"Garancija velja do", warrantySave:"SHRANI GARANCIJO", warrantyRemove:"Odstrani garancijo", warrantyExp:"GARANCIJA POTEČE", warrantyValid:"garancija do", warrantyCard:"Garancije, ki potečejo (60 dni)", warrantySaved:"Garancija shranjena", setWarranty:"Nastavi garancijo",
+  moveMat:"Premakni material", moveTo:"Kam", moveQty:"Količina", moveConfirm:"POTRDI PREMIK", backToStore:"↩️ VRNITEV V TRGOVINO (dobropis)", matMoved:"Material premaknjen", qtyTooBig:"Količina je večja od razpoložljive!",
   phoneNotBound:"Telefon NI vezan na delavca!", callAdmin:"Pokliči šefa, naj telefon veže nate (Nastavitve).",
   boundAs:"Skenira", selectWorker:"Izberi delavca", wrongPin:"Napačen PIN!", adminOn:"Admin način vklopljen",
   adminOff:"Admin način zaklenjen", pinChanged:"PIN spremenjen", newPinPrompt:"Vnesi NOV 4-mestni PIN:",
@@ -452,6 +465,7 @@ bih: {
   servisSaved:"Servis prijavljen", repairedSaved:"Alat je nazad u upotrebi", onService:"NA SERVISU",
   izposojeno:"POSUĐENO", lendTitle:"Posudi alat", lendTo:"Kome posuđuješ", lendToPh:"Firma ili osoba...", lendNotePh:"Npr. do petka, br. tel...", lendConfirm:"POTVRDI POSUDBU", lentAt:"posuđeno kod", lentSaved:"Posuđeno", lentAlready:"Ovaj alat je već posuđen!",
   fWarranty:"Garancija do (opcionalno)", warrantyTitle:"Garancija", warrantyUntil:"Garancija važi do", warrantySave:"SAČUVAJ GARANCIJU", warrantyRemove:"Ukloni garanciju", warrantyExp:"GARANCIJA ISTEKLA", warrantyValid:"garancija do", warrantyCard:"Garancije koje istječu (60 dana)", warrantySaved:"Garancija sačuvana", setWarranty:"Postavi garanciju",
+  moveMat:"Premjesti materijal", moveTo:"Kamo", moveQty:"Količina", moveConfirm:"POTVRDI PREMJEŠTAJ", backToStore:"↩️ POVRAT U TRGOVINU (dobropis)", matMoved:"Materijal premješten", qtyTooBig:"Količina je veća od raspoložive!",
   phoneNotBound:"Telefon NIJE vezan za radnika!", callAdmin:"Zovi šefa da veže telefon za tebe (Postavke).",
   boundAs:"Skenira", selectWorker:"Odaberi radnika", wrongPin:"Pogrešan PIN!", adminOn:"Admin način uključen",
   adminOff:"Admin način zaključan", pinChanged:"PIN promijenjen", newPinPrompt:"Unesi NOVI 4-cifreni PIN:",
@@ -997,13 +1011,50 @@ function renderMat(){
   // seznam
   let ms=D.material; if(matTab!=="all") ms=ms.filter(m=>m.lokacijaId===matTab);
   $("mat-count").textContent=ms.length;
-  $("mat-list").innerHTML=ms.length?ms.map(m=>"<div class='list-item' data-mat='"+m.id+"'><div class='item-info'><div class='item-title'>📦 "+m.naziv+"</div><div class='item-sub'>"+(m.kolicina?m.kolicina+" "+(m.enota||""):"")+(m.cena?" • "+m.cena.toFixed(2)+" €":"")+(m.dobavitelj?" • "+m.dobavitelj:"")+"</div><div class='item-sub'>📍 "+locName(m.lokacijaId)+" • "+fmtDate(m.datum)+(m.foto?" • 📷":"")+"</div></div><button class='btn btn-danger btn-sm' data-del-mat='"+m.id+"'>🗑️</button></div>").join(""):"<div class='empty'><div class='icon'>📦</div><p>"+t("noMat")+"</p></div>";
+  $("mat-list").innerHTML=ms.length?ms.map(m=>"<div class='list-item' data-mat='"+m.id+"'><div class='item-info'><div class='item-title'>📦 "+m.naziv+"</div><div class='item-sub'>"+(m.kolicina?m.kolicina+" "+(m.enota||""):"")+(m.cena?" • "+m.cena.toFixed(2)+" €":"")+(m.dobavitelj?" • "+m.dobavitelj:"")+"</div><div class='item-sub'>📍 "+locName(m.lokacijaId)+" • "+fmtDate(m.datum)+(m.foto?" • 📷":"")+"</div></div><div style='display:flex;gap:6px;align-items:center'><button class='btn btn-rumena btn-sm' data-move-mat='"+m.id+"'>🔀</button><button class='btn btn-danger btn-sm' data-del-mat='"+m.id+"'>🗑️</button></div></div>").join(""):"<div class='empty'><div class='icon'>📦</div><p>"+t("noMat")+"</p></div>";
   document.querySelectorAll("[data-del-mat]").forEach(b=>b.addEventListener("click",async function(e){ e.stopPropagation(); if(!confirm(t("delMat"))) return; await deleteDoc(doc(db,"material",this.getAttribute("data-del-mat"))); }));
+  document.querySelectorAll("[data-move-mat]").forEach(b=>b.addEventListener("click",function(e){ e.stopPropagation(); openMatMove(this.getAttribute("data-move-mat")); }));
   document.querySelectorAll("[data-mat]").forEach(el=>el.addEventListener("click",function(){
     const m=D.material.find(x=>x.id===this.getAttribute("data-mat"));
     if(m&&m.foto){ $("foto-full").src="data:image/jpeg;base64,"+m.foto; openModal("modal-foto"); }
   }));
 }
+// ===== PREMIK MATERIALA =====
+let matMoveId=null;
+function openMatMove(id){
+  const m=D.material.find(x=>x.id===id); if(!m) return;
+  matMoveId=id;
+  $("matmove-info").innerHTML="<div class='tool-name'>📦 "+m.naziv+"</div><div class='tool-detail'>"+(m.kolicina||0)+" "+(m.enota||"")+(m.cena?" • "+m.cena.toFixed(2)+" €":"")+" • 📍 "+locName(m.lokacijaId)+"</div>";
+  let opts=D.lokacije.filter(l=>l.id!==m.lokacijaId).map(l=>"<option value='"+l.id+"'>📍 "+l.naziv+"</option>").join("");
+  opts+="<option value='__trgovina__'>"+t("backToStore")+"</option>";
+  $("matmove-target").innerHTML=opts;
+  $("matmove-qty").value=m.kolicina||"";
+  openModal("modal-mat-move");
+}
+$("btn-matmove-cancel").addEventListener("click",()=>closeModal("modal-mat-move"));
+$("btn-matmove-confirm").addEventListener("click",async ()=>{
+  const m=D.material.find(x=>x.id===matMoveId); if(!m) return;
+  const target=$("matmove-target").value;
+  const qty=parseFloat($("matmove-qty").value);
+  if(!qty||qty<=0){ toast(t("fillAll"),"error"); return; }
+  if(m.kolicina&&qty>m.kolicina){ toast(t("qtyTooBig"),"error"); return; }
+  closeModal("modal-mat-move");
+  try{
+    const polno=!m.kolicina||qty>=m.kolicina;
+    const delez=m.kolicina?qty/m.kolicina:1;
+    if(target==="__trgovina__"){
+      // vrnitev v trgovino = odštej
+      if(polno) await deleteDoc(doc(db,"material",m.id));
+      else await updateDoc(doc(db,"material",m.id),{kolicina:m.kolicina-qty,cena:(m.cena||0)*(1-delez)});
+    } else if(polno){
+      await updateDoc(doc(db,"material",m.id),{lokacijaId:target});
+    } else {
+      await updateDoc(doc(db,"material",m.id),{kolicina:m.kolicina-qty,cena:(m.cena||0)*(1-delez)});
+      await addDoc(collection(db,"material"),{lokacijaId:target,naziv:m.naziv,kolicina:qty,enota:m.enota||"",cena:(m.cena||0)*delez,dobavitelj:m.dobavitelj||"",foto:m.foto||"",datum:new Date().toISOString(),dodal:deviceWorker()});
+    }
+    toast("🔀 "+t("matMoved"));
+  }catch(e){ console.error(e); toast("⚠️ "+t("matSavedErr"),"error"); }
+});
 $("btn-foto-close").addEventListener("click",()=>closeModal("modal-foto"));
 $("btn-mat-csv").addEventListener("click",()=>{
   let csv="Gradbisce;Postavka;Kolicina;Enota;CenaEUR;Dobavitelj;Datum\n";
