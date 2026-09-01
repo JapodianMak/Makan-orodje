@@ -387,7 +387,7 @@ sl: {
   boundAs:"Skenira", selectWorker:"Izberi delavca", wrongPin:"Napačen PIN!", adminOn:"Admin način vklopljen",
   adminOff:"Admin način zaklenjen", pinChanged:"PIN spremenjen", newPinPrompt:"Vnesi NOV 4-mestni PIN:",
   keyPrompt:"Prilepi Gemini API ključ:", keySaved:"Ključ shranjen",
-  matSaved:"Vnos materiala shranjen", matFill:"Izpolni gradbišče in postavko!", aiNoKey:"Najprej v Nastavitvah shrani Gemini ključ!",
+  matSaved:"Vnos materiala shranjen", matSavedErr:"Shranjevanje ni uspelo — preveri povezavo in poskusi znova", matFill:"Izpolni gradbišče in postavko!", aiNoKey:"Najprej v Nastavitvah shrani Gemini ključ!",
   aiNoFoto:"Najprej slikaj dobavnico!", aiReading:"AI prebira dobavnico...", aiDone:"Prebrano — preveri in popravi podatke!",
   aiErr:"AI branje ni uspelo — vpiši ročno.", delMat:"Izbrišem vnos?", noMat:"Še ni vnosov materiala",
   delLoc:"Odstranim lokacijo?", delWorker:"Odstranim delavca?", delTool:"Izbrišem orodje?",
@@ -427,7 +427,7 @@ bih: {
   boundAs:"Skenira", selectWorker:"Odaberi radnika", wrongPin:"Pogrešan PIN!", adminOn:"Admin način uključen",
   adminOff:"Admin način zaključan", pinChanged:"PIN promijenjen", newPinPrompt:"Unesi NOVI 4-cifreni PIN:",
   keyPrompt:"Zalijepi Gemini API ključ:", keySaved:"Ključ sačuvan",
-  matSaved:"Unos materijala sačuvan", matFill:"Popuni gradilište i stavku!", aiNoKey:"Prvo u Postavkama sačuvaj Gemini ključ!",
+  matSaved:"Unos materijala sačuvan", matSavedErr:"Čuvanje nije uspjelo — provjeri vezu i pokušaj ponovo", matFill:"Popuni gradilište i stavku!", aiNoKey:"Prvo u Postavkama sačuvaj Gemini ključ!",
   aiNoFoto:"Prvo slikaj dostavnicu!", aiReading:"AI čita dostavnicu...", aiDone:"Pročitano — provjeri i ispravi podatke!",
   aiErr:"AI čitanje nije uspjelo — unesi ručno.", delMat:"Obrišem unos?", noMat:"Još nema unosa materijala",
   delLoc:"Uklonim lokaciju?", delWorker:"Uklonim radnika?", delTool:"Obrišem alat?",
@@ -841,7 +841,7 @@ $("btn-ai-read").addEventListener("click",async ()=>{
   if(!matFotoB64){ toast(t("aiNoFoto"),"warn"); return; }
   $("ai-status").textContent="⏳ "+t("aiReading");
   try{
-    const prompt="To je dobavnica (račun/dostavnica) iz trgovine z gradbenim materialom. Preberi jo in vrni SAMO JSON brez dodatnega besedila v obliki: {\"postavke\":[{\"naziv\":\"\",\"kolicina\":0,\"enota\":\"\",\"cenaSkupaj\":0}],\"dobavitelj\":\"\",\"gradbisce\":\"\"}. Pravila: 'naziv' je ime materiala, 'kolicina' je število (decimalna pika), 'enota' je m2/m/kos/vreča itd, 'cenaSkupaj' je končna vrednost postavke z DDV v EUR, 'dobavitelj' je ime trgovine, 'gradbisce' je ime gradbišča če je omenjeno na dokumentu (npr. ob 'naloženo po nalogu' ali v opombah), sicer prazno.";
+    const prompt="To je dobavnica (račun/dostavnica) iz trgovine z gradbenim materialom. Preberi jo in vrni SAMO JSON brez dodatnega besedila v obliki: {\"postavke\":[{\"naziv\":\"\",\"kolicina\":0,\"enota\":\"\",\"cenaSkupaj\":0}],\"dobavitelj\":\"\",\"gradbisce\":\"\"}. Pravila: 'naziv' je ime materiala, 'kolicina' je število (decimalna pika), 'enota' je m2/m/kos/vreča itd, 'cenaSkupaj' je končna vrednost postavke z DDV v EUR, 'dobavitelj' je ime TRGOVINE/PODJETJA KI JE IZDALO TA DOKUMENT (v glavi dokumenta, npr. logotip zgoraj) — NIKOLI ni kupec; kupec je 'MAKAN GP d.o.o.', ki ga NE smeš vrniti kot dobavitelja (v tem primeru pusti 'dobavitelj' prazen), 'gradbisce' je ime gradbišča če je omenjeno na dokumentu (npr. ob 'naloženo po nalogu' ali v opombah), sicer prazno.";
     const MODELI=["gemini-2.5-flash","gemini-3.6-flash","gemini-flash-latest"];
     let j=null, lastErr="";
     for(const m of MODELI){
@@ -881,12 +881,14 @@ $("btn-mat-save").addEventListener("click",async ()=>{
   const lok=$("mat-lokacija").value, naziv=$("mat-naziv").value.trim();
   if(!lok||!naziv){ toast(t("matFill"),"error"); return; }
   const base={lokacijaId:lok,datum:new Date().toISOString(),foto:matFotoB64,dobavitelj:$("mat-dobavitelj").value.trim(),dodal:deviceWorker()};
-  await addDoc(collection(db,"material"),{...base,naziv,kolicina:parseFloat($("mat-kolicina").value)||0,enota:$("mat-enota").value.trim(),cena:parseFloat($("mat-cena").value)||0});
-  if(window._matExtra && window._matExtra.length){
-    for(const p of window._matExtra) await addDoc(collection(db,"material"),{...base,naziv:p.naziv||"",kolicina:p.kolicina||0,enota:p.enota||"",cena:p.cenaSkupaj||0});
-    window._matExtra=null;
-  }
+  const extra=window._matExtra; window._matExtra=null;
   closeModal("modal-mat"); toast("📦 "+t("matSaved"));
+  try{
+    await addDoc(collection(db,"material"),{...base,naziv,kolicina:parseFloat($("mat-kolicina").value)||0,enota:$("mat-enota").value.trim(),cena:parseFloat($("mat-cena").value)||0});
+    if(extra && extra.length){
+      for(const p of extra) await addDoc(collection(db,"material"),{...base,naziv:p.naziv||"",kolicina:p.kolicina||0,enota:p.enota||"",cena:p.cenaSkupaj||0});
+    }
+  }catch(e){ console.error(e); toast("⚠️ "+t("matSavedErr"),"error"); }
 });
 function renderMat(){
   // seštevki po gradbiščih
