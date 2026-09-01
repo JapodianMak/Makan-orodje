@@ -292,7 +292,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
     <h2>📦 <span data-i18n="matTitle">VNOS MATERIALA</span></h2>
     <div class="form-group"><label><span data-i18n="matSite">Gradbišče</span> *</label><select id="mat-lokacija"></select></div>
     <div class="form-group"><label data-i18n="matPhoto">Fotografija dobavnice</label>
-      <input type="file" id="mat-foto" accept="image/*" capture="environment">
+      <input type="file" id="mat-foto" accept="image/*">
       <img id="mat-foto-preview" class="mat-photo" style="display:none">
       <button class="btn btn-outline btn-sm" id="btn-ai-read" style="margin-top:8px;display:none">🤖 <span data-i18n="aiRead">Preberi s slike (AI)</span></button>
       <div id="ai-status" style="font-size:0.82rem;color:var(--tx2);margin-top:6px"></div>
@@ -502,7 +502,7 @@ function openPin(onOk){
 function updatePinDots(){ document.querySelectorAll("#pin-dots span").forEach((s,i)=>s.classList.toggle("full",i<pinBuffer.length)); }
 document.getElementById("btn-pin-cancel").addEventListener("click",()=>closeModal("modal-pin"));
 document.getElementById("btn-lock").addEventListener("click",()=>{
-  if(isAdmin()){ closeModal?.call(null,""); toast("MAKAN GP"); return; }
+  if(isAdmin()){ localStorage.removeItem("makan_admin"); applyMode(); toast(t("adminOff")); return; }
   openPin(()=>{ localStorage.setItem("makan_admin","1"); applyMode(); toast(t("adminOn")); });
 });
 document.getElementById("btn-lock-now").addEventListener("click",()=>{ localStorage.removeItem("makan_admin"); applyMode(); toast(t("adminOff")); });
