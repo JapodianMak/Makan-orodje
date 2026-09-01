@@ -978,5 +978,21 @@ function renderAll(){ renderL(); renderO(); renderSet(); renderMat(); }
 document.querySelectorAll(".modal-overlay").forEach(m=>{ m.addEventListener("click",function(e){ if(e.target===this) this.classList.remove("active"); }); });
 applyI18n(); applyMode(); listen(); initScan();
 </script>
+<script>
+// Service worker + samodejna posodobitev
+if("serviceWorker" in navigator){
+  let reloading=false;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(reloading) return; reloading=true; location.reload();
+  });
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("./sw.js").then(reg=>{
+      // preveri novo verzijo ob vsaki vrnitvi v aplikacijo
+      document.addEventListener("visibilitychange",()=>{ if(!document.hidden) reg.update(); });
+      setInterval(()=>reg.update(),60000);
+    }).catch(()=>{});
+  });
+}
+</script>
 </body>
 </html>
