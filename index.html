@@ -734,8 +734,9 @@ function renderO(){
   else {
     l.innerHTML=D.orodja.map(o=>{ const loc=getLoc(o.id); const last=getLast(o.id); const komu=loc==="izposojeno"&&last&&last.izposojaKomu?last.izposojaKomu:"";
       let gar=""; if(o.garancijaDo){ const dLeft=Math.ceil((new Date(o.garancijaDo)-Date.now())/86400000); gar=dLeft<0?"<div class='item-sub' style='color:var(--er);font-weight:700'>🛡️ "+t("warrantyExp")+" ("+o.garancijaDo+")</div>":dLeft<=60?"<div class='item-sub' style='color:var(--wn);font-weight:700'>🛡️ "+t("warrantyValid")+" "+o.garancijaDo+" ("+dLeft+"d)</div>":"<div class='item-sub'>🛡️ "+t("warrantyValid")+" "+o.garancijaDo+"</div>"; }
-      return "<div class='list-item "+(o.status==="servis"?"servis":"")+"' data-tool='"+o.id+"'><div class='item-info'><div class='item-title'>"+o.naziv+(o.tip?" ("+o.tip+")":"")+(o.status==="servis"?" 🔧":"")+"</div><div class='item-sub'>"+(o.serijska?"Inv. "+o.serijska+" • ":"")+"QR: "+o.qr+"</div><div class='item-sub'>"+(loc==="izposojeno"?"🤝 "+t("lentAt")+" <b>"+komu+"</b>":"📍 "+locName(loc))+"</div>"+gar+"</div><div style='display:flex;gap:6px;align-items:center'><button class='btn btn-rumena btn-sm' data-lend-tool='"+o.id+"'>🤝</button><button class='btn btn-danger btn-sm' data-del-tool='"+o.id+"'>🗑️</button></div></div>"; }).join("");
+      return "<div class='list-item "+(o.status==="servis"?"servis":"")+"' data-tool='"+o.id+"'><div class='item-info'><div class='item-title'>"+o.naziv+(o.tip?" ("+o.tip+")":"")+(o.status==="servis"?" 🔧":"")+"</div><div class='item-sub'>"+(o.serijska?"Inv. "+o.serijska+" • ":"")+"QR: "+o.qr+"</div><div class='item-sub'>"+(loc==="izposojeno"?"🤝 "+t("lentAt")+" <b>"+komu+"</b>":"📍 "+locName(loc))+"</div>"+gar+"</div><div style='display:flex;gap:6px;align-items:center'><button class='btn btn-outline btn-sm' data-gar-tool='"+o.id+"'>🛡️</button><button class='btn btn-rumena btn-sm' data-lend-tool='"+o.id+"'>🤝</button><button class='btn btn-danger btn-sm' data-del-tool='"+o.id+"'>🗑️</button></div></div>"; }).join("");
     document.querySelectorAll("[data-lend-tool]").forEach(b=>b.addEventListener("click",function(e){ e.stopPropagation(); openIzposoja(this.getAttribute("data-lend-tool")); }));
+    document.querySelectorAll("[data-gar-tool]").forEach(b=>b.addEventListener("click",function(e){ e.stopPropagation(); const tl=D.orodja.find(x=>x.id===this.getAttribute("data-gar-tool")); if(tl) openGarancija(tl); }));
     document.querySelectorAll("[data-del-tool]").forEach(b=>b.addEventListener("click",async function(e){ e.stopPropagation(); if(!confirm(t("delTool"))) return; await deleteDoc(doc(db,"orodja",this.getAttribute("data-del-tool"))); }));
   }
   document.querySelectorAll("#tools-all-list .list-item[data-tool], #servis-list .list-item[data-tool]").forEach(el=>el.addEventListener("click",function(){ openZgod(this.getAttribute("data-tool")); }));
@@ -767,10 +768,10 @@ function openZgod(tid){
   } else {
     act="<button class='btn btn-danger' id='btn-report-servis'>🔧 "+t("servisReport")+"</button>";
   }
-  if(isAdmin()) act+="<button class='btn btn-outline' id='btn-warranty' style='margin-top:6px'>🛡️ "+t("setWarranty")+(tool.garancijaDo?" ("+tool.garancijaDo+")":"")+"</button>";
+
   $("zgod-actions").innerHTML=act;
   const rs=$("btn-report-servis"); if(rs) rs.addEventListener("click",()=>{ closeModal("modal-zgodovina"); openServis(tool); });
-  const wb2=$("btn-warranty"); if(wb2) wb2.addEventListener("click",()=>{ closeModal("modal-zgodovina"); openGarancija(tool); });
+
   const rp=$("btn-repair"); if(rp) rp.addEventListener("click",async ()=>{
     await updateDoc(doc(db,"orodja",tid),{status:"ok",serviceNote:"",serviceDate:"",serviceBy:""});
     await addDoc(collection(db,"dogodki"),{tip:"popravilo",orodjeId:tid,datum:new Date().toISOString(),delavecId:deviceWorker(),opomba:t("backInUse")});
