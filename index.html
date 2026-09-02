@@ -804,11 +804,12 @@ $("btn-premik-confirm").addEventListener("click",async ()=>{
   if(!wid && isAdmin()) wid=$("premik-worker-admin")?.value||"";
   if(!wid){ toast(t("fillAll"),"error"); return; }
   const fl=getLoc(tool.id);
-  await addDoc(collection(db,"dogodki"),{tip:"premik",orodjeId:tool.id,izLokacijeId:fl,naLokacijoId:selLoc,datum:new Date().toISOString(),delavecId:wid,opomba:$("premik-note").value.trim()});
+  const op=$("premik-note").value.trim(), cilj=selLoc;
   closeModal("modal-premik");
-  toast("✅ "+tool.naziv+" → "+locName(selLoc));
+  toast("✅ "+tool.naziv+" → "+locName(cilj));
   document.body.classList.add("beep-anim"); setTimeout(()=>document.body.classList.remove("beep-anim"),600);
   playBeep();
+  addDoc(collection(db,"dogodki"),{tip:"premik",orodjeId:tool.id,izLokacijeId:fl,naLokacijoId:cilj,datum:new Date().toISOString(),delavecId:wid,opomba:op}).catch(e=>{ console.error(e); toast("⚠️ "+(e.code||e.message),"error"); });
 });
 $("btn-premik-cancel").addEventListener("click",()=>closeModal("modal-premik"));
 
@@ -831,13 +832,15 @@ $("btn-izposoja-confirm").addEventListener("click",async ()=>{
   const note=$("izposoja-note").value.trim();
   const fl=getLoc(tool.id);
   if(fl==="izposojeno"){ toast(t("lentAlready"),"warn"); closeModal("modal-izposoja"); return; }
-  await addDoc(collection(db,"dogodki"),{tip:"premik",orodjeId:tool.id,izLokacijeId:fl,naLokacijoId:"izposojeno",izposojaKomu:komu,datum:new Date().toISOString(),delavecId:deviceWorker()||"",opomba:note});
-  // zapomni si podjetje za naslednjič
-  const pj=[...(META.podjetja||[])];
-  if(!pj.includes(komu)){ pj.push(komu); setDoc(doc(db,"meta","settings"),{podjetja:pj},{merge:true}); }
   closeModal("modal-izposoja");
   toast("🤝 "+tool.naziv+" → "+komu);
   playBeep();
+  try{
+    await addDoc(collection(db,"dogodki"),{tip:"premik",orodjeId:tool.id,izLokacijeId:fl,naLokacijoId:"izposojeno",izposojaKomu:komu,datum:new Date().toISOString(),delavecId:deviceWorker()||"",opomba:note});
+    // zapomni si podjetje za naslednjič
+    const pj=[...(META.podjetja||[])];
+    if(!pj.includes(komu)){ pj.push(komu); setDoc(doc(db,"meta","settings"),{podjetja:pj},{merge:true}); }
+  }catch(e){ console.error(e); toast("⚠️ "+(e.code||e.message),"error"); }
 });
 
 // ===== KJE JE KAJ =====
@@ -934,9 +937,11 @@ function openZgod(tid){
   const rs=$("btn-report-servis"); if(rs) rs.addEventListener("click",()=>{ closeModal("modal-zgodovina"); openServis(tool); });
 
   const rp=$("btn-repair"); if(rp) rp.addEventListener("click",async ()=>{
-    await updateDoc(doc(db,"orodja",tid),{status:"ok",serviceNote:"",serviceDate:"",serviceBy:""});
-    await addDoc(collection(db,"dogodki"),{tip:"popravilo",orodjeId:tid,datum:new Date().toISOString(),delavecId:deviceWorker(),opomba:t("backInUse")});
     closeModal("modal-zgodovina"); toast("✅ "+t("repairedSaved"));
+    try{
+      await updateDoc(doc(db,"orodja",tid),{status:"ok",serviceNote:"",serviceDate:"",serviceBy:""});
+      await addDoc(collection(db,"dogodki"),{tip:"popravilo",orodjeId:tid,datum:new Date().toISOString(),delavecId:deviceWorker(),opomba:t("backInUse")});
+    }catch(e){ console.error(e); toast("⚠️ "+(e.code||e.message),"error"); }
   });
   const h=D.dogodki.filter(d=>d.orodjeId===tid);
   const l=$("zgodovina-list");
@@ -994,9 +999,9 @@ $("btn-vrni-confirm").addEventListener("click",async ()=>{
   const tool=D.orodja.find(o=>o.id===vrniTool); if(!tool) return;
   const cilj=$("vrni-lokacija").value;
   closeModal("modal-vrni");
-  await addDoc(collection(db,"dogodki"),{tip:"premik",orodjeId:tool.id,izLokacijeId:"izposojeno",naLokacijoId:cilj,datum:new Date().toISOString(),delavecId:deviceWorker()||"",opomba:"↩️ "+t("returnTitle")});
   toast("↩️ "+tool.naziv+" → "+locName(cilj));
   playBeep();
+  addDoc(collection(db,"dogodki"),{tip:"premik",orodjeId:tool.id,izLokacijeId:"izposojeno",naLokacijoId:cilj,datum:new Date().toISOString(),delavecId:deviceWorker()||"",opomba:"↩️ "+t("returnTitle")}).catch(e=>{ console.error(e); toast("⚠️ "+(e.code||e.message),"error"); });
 });
 
 // ===== GARANCIJA =====
@@ -1030,9 +1035,12 @@ $("btn-servis-cancel").addEventListener("click",()=>closeModal("modal-servis"));
 $("btn-servis-confirm").addEventListener("click",async ()=>{
   const note=$("servis-note").value.trim();
   if(!note){ toast(t("fillAll"),"error"); return; }
-  await updateDoc(doc(db,"orodja",servisTool),{status:"servis",serviceNote:note,serviceDate:new Date().toISOString(),serviceBy:deviceWorker()});
-  await addDoc(collection(db,"dogodki"),{tip:"servis",orodjeId:servisTool,datum:new Date().toISOString(),delavecId:deviceWorker(),opomba:note});
+  const tid=servisTool;
   closeModal("modal-servis"); toast("🔧 "+t("servisSaved"));
+  try{
+    await updateDoc(doc(db,"orodja",tid),{status:"servis",serviceNote:note,serviceDate:new Date().toISOString(),serviceBy:deviceWorker()});
+    await addDoc(collection(db,"dogodki"),{tip:"servis",orodjeId:tid,datum:new Date().toISOString(),delavecId:deviceWorker(),opomba:note});
+  }catch(e){ console.error(e); toast("⚠️ "+(e.code||e.message),"error"); }
 });
 
 // ===== NASTAVITVE =====
