@@ -1124,7 +1124,7 @@ $("btn-ai-read").addEventListener("click",async ()=>{
     for(const m of MODELI){
       try{
         const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+key,{
-          method:"POST", headers:{"Content-Type":"application/json"},
+          method:"POST", headers:{"Content-Type":"application/json"}, signal:AbortSignal.timeout(30000),
           body:JSON.stringify({contents:[{parts:[{text:prompt},{inlineData:{mimeType:"image/jpeg",data:matFotoB64}}]}],generationConfig:{responseMimeType:"application/json"}})
         });
         j=await res.json();
@@ -1199,7 +1199,7 @@ function renderMat(){
   let ms=D.material; if(matTab!=="all") ms=ms.filter(m=>m.lokacijaId===matTab);
   $("mat-count").textContent=ms.length;
   $("mat-list").innerHTML=ms.length?ms.map(m=>"<div class='list-item' data-mat='"+m.id+"'><div class='item-info'><div class='item-title'>📦 "+m.naziv+"</div><div class='item-sub'>"+(m.kolicina?m.kolicina+" "+(m.enota||""):"")+(m.cena?" • "+m.cena.toFixed(2)+" €":"")+(m.dobavitelj?" • "+m.dobavitelj:"")+"</div><div class='item-sub'>📍 "+locName(m.lokacijaId)+" • "+fmtDate(m.datum)+(m.foto?" • 📷":"")+"</div></div><div style='display:flex;gap:6px;align-items:center'><button class='btn btn-outline btn-sm' data-edit-mat='"+m.id+"'>✏️</button><button class='btn btn-rumena btn-sm' data-move-mat='"+m.id+"'>🔀</button><button class='btn btn-danger btn-sm' data-del-mat='"+m.id+"'>🗑️</button></div></div>").join(""):"<div class='empty'><div class='icon'>📦</div><p>"+t("noMat")+"</p></div>";
-  document.querySelectorAll("[data-del-mat]").forEach(b=>b.addEventListener("click",async function(e){ e.stopPropagation(); if(!confirm(t("delMat"))) return; await deleteDoc(doc(db,"material",this.getAttribute("data-del-mat"))); }));
+  document.querySelectorAll("[data-del-mat]").forEach(b=>b.addEventListener("click",function(e){ e.stopPropagation(); if(!confirm(t("delMat"))) return; const did=this.getAttribute("data-del-mat"); D.material=D.material.filter(x=>x.id!==did); renderMat(); deleteDoc(doc(db,"material",did)).catch(err=>toast("⚠️ "+err.message,"error")); }));
   document.querySelectorAll("[data-move-mat]").forEach(b=>b.addEventListener("click",function(e){ e.stopPropagation(); openMatMove(this.getAttribute("data-move-mat")); }));
   document.querySelectorAll("[data-edit-mat]").forEach(b=>b.addEventListener("click",function(e){ e.stopPropagation(); openMatEdit(this.getAttribute("data-edit-mat")); }));
   document.querySelectorAll("[data-mat]").forEach(el=>el.addEventListener("click",function(){
