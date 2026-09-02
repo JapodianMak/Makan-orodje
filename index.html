@@ -1133,6 +1133,8 @@ $("btn-ai-read").addEventListener("click",async ()=>{
         j=null;
         if(res.status===429||res.status===503) await cakaj(2000);
       }catch(err){ lastErr=err.message; j=null; }
+      if(j) break;
+    }
     }
     if(!j){ $("ai-status").textContent="⚠️ "+t("aiErr")+" ("+lastErr+")"; return; }
     let txt=j.candidates?.[0]?.content?.parts?.[0]?.text||"";
