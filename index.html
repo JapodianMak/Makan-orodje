@@ -518,7 +518,7 @@ sl: {
   boundAs:"Skenira", selectWorker:"Izberi delavca", wrongPin:"Napačen PIN!", adminOn:"Admin način vklopljen",
   adminOff:"Admin način zaklenjen", pinChanged:"PIN spremenjen", newPinPrompt:"Vnesi NOV 4-mestni PIN:",
   keyPrompt:"Prilepi Gemini API ključ:", keySaved:"Ključ shranjen",
-  matSaved:"Vnos materiala shranjen", matSavedErr:"Shranjevanje ni uspelo — preveri povezavo in poskusi znova", matFill:"Izpolni gradbišče in postavko!", aiNoKey:"Najprej v Nastavitvah shrani Gemini ključ!",
+  matSaved:"Vnos materiala shranjen", matSavedErr:"Shranjevanje ni uspelo — preveri povezavo in poskusi znova", moveErr:"Premik ni uspel — nič ni bilo odšteto, poskusi znova", matFill:"Izpolni gradbišče in postavko!", aiNoKey:"Najprej v Nastavitvah shrani Gemini ključ!",
   aiNoFoto:"Najprej slikaj dobavnico!", aiReading:"AI prebira dobavnico...", aiDone:"Prebrano — preveri in popravi podatke!",
   aiErr:"AI branje ni uspelo — vpiši ročno.", delMat:"Izbrišem vnos?", noMat:"Še ni vnosov materiala",
   delLoc:"Odstranim lokacijo?", delWorker:"Odstranim delavca?", delTool:"Izbrišem orodje?",
@@ -564,7 +564,7 @@ bih: {
   boundAs:"Skenira", selectWorker:"Odaberi radnika", wrongPin:"Pogrešan PIN!", adminOn:"Admin način uključen",
   adminOff:"Admin način zaključan", pinChanged:"PIN promijenjen", newPinPrompt:"Unesi NOVI 4-cifreni PIN:",
   keyPrompt:"Zalijepi Gemini API ključ:", keySaved:"Ključ sačuvan",
-  matSaved:"Unos materijala sačuvan", matSavedErr:"Čuvanje nije uspjelo — provjeri vezu i pokušaj ponovo", matFill:"Popuni gradilište i stavku!", aiNoKey:"Prvo u Postavkama sačuvaj Gemini ključ!",
+  matSaved:"Unos materijala sačuvan", matSavedErr:"Čuvanje nije uspjelo — provjeri vezu i pokušaj ponovo", moveErr:"Premještanje nije uspjelo — ništa nije odbijeno, pokušaj ponovo", matFill:"Popuni gradilište i stavku!", aiNoKey:"Prvo u Postavkama sačuvaj Gemini ključ!",
   aiNoFoto:"Prvo slikaj dostavnicu!", aiReading:"AI čita dostavnicu...", aiDone:"Pročitano — provjeri i ispravi podatke!",
   aiErr:"AI čitanje nije uspjelo — unesi ručno.", delMat:"Obrišem unos?", noMat:"Još nema unosa materijala",
   delLoc:"Uklonim lokaciju?", delWorker:"Uklonim radnika?", delTool:"Obrišem alat?",
@@ -1210,11 +1210,13 @@ $("btn-matmove-confirm").addEventListener("click",async ()=>{
     } else if(polno){
       await updateDoc(doc(db,"material",m.id),{lokacijaId:target});
     } else {
+      // najprej USTVARI nov zapis na cilju, šele potem odštej izvor —
+      // če karkoli spodleti, izvor ostane nedotaknjen
+      const nov=await addDoc(collection(db,"material"),{lokacijaId:target,naziv:m.naziv,kolicina:qty,enota:m.enota||"",cena:(m.cena||0)*delez,dobavitelj:m.dobavitelj||"",foto:m.foto||"",datum:new Date().toISOString(),dodal:deviceWorker()});
       await updateDoc(doc(db,"material",m.id),{kolicina:m.kolicina-qty,cena:(m.cena||0)*(1-delez)});
-      await addDoc(collection(db,"material"),{lokacijaId:target,naziv:m.naziv,kolicina:qty,enota:m.enota||"",cena:(m.cena||0)*delez,dobavitelj:m.dobavitelj||"",foto:m.foto||"",datum:new Date().toISOString(),dodal:deviceWorker()});
     }
     toast("🔀 "+t("matMoved"));
-  }catch(e){ console.error(e); toast("⚠️ "+t("matSavedErr"),"error"); }
+  }catch(e){ console.error(e); toast("⚠️ "+t("moveErr")+" ("+(e.code||e.message||e)+")","error"); }
 });
 $("btn-foto-close").addEventListener("click",()=>closeModal("modal-foto"));
 $("btn-mat-csv").addEventListener("click",()=>{
