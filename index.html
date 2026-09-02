@@ -1075,14 +1075,26 @@ $("btn-do-print").addEventListener("click",()=>{
 });
 
 // ===== MATERIAL =====
-let matFotoB64="";
+let matFotoB64="", matEditId=null;
 $("btn-add-mat").addEventListener("click",()=>{
+  matEditId=null;
   ["mat-naziv","mat-kolicina","mat-enota","mat-cena","mat-dobavitelj"].forEach(id=>$(id).value="");
   $("mat-lokacija").innerHTML=D.lokacije.map(l=>"<option value='"+l.id+"'>"+l.naziv+"</option>").join("");
   matFotoB64=""; $("mat-foto").value=""; $("mat-foto-preview").style.display="none"; $("ai-status").textContent="";
   $("btn-ai-read").style.display=localStorage.getItem("makan_gemini")?"":"none";
   openModal("modal-mat");
 });
+function openMatEdit(id){
+  const m=D.material.find(x=>x.id===id); if(!m) return;
+  matEditId=id;
+  $("mat-naziv").value=m.naziv||""; $("mat-kolicina").value=m.kolicina||""; $("mat-enota").value=m.enota||"";
+  $("mat-cena").value=m.cena||""; $("mat-dobavitelj").value=m.dobavitelj||"";
+  $("mat-lokacija").innerHTML=D.lokacije.map(l=>"<option value='"+l.id+"'"+(l.id===m.lokacijaId?" selected":"")+">"+l.naziv+"</option>").join("");
+  matFotoB64=""; $("mat-foto").value=""; $("ai-status").textContent="";
+  const p=$("mat-foto-preview"); if(m.foto){ p.src="data:image/jpeg;base64,"+m.foto; p.style.display="block"; } else p.style.display="none";
+  $("btn-ai-read").style.display="none";
+  openModal("modal-mat");
+}
 $("btn-mat-cancel").addEventListener("click",()=>closeModal("modal-mat"));
 $("mat-foto").addEventListener("change",async function(){
   const f=this.files[0]; if(!f) return;
@@ -1103,9 +1115,12 @@ $("btn-ai-read").addEventListener("click",async ()=>{
   if(!matFotoB64){ toast(t("aiNoFoto"),"warn"); return; }
   $("ai-status").textContent="⏳ "+t("aiReading");
   try{
-    const prompt="To je dobavnica (račun/dostavnica) iz trgovine z gradbenim materialom. Preberi jo in vrni SAMO JSON brez dodatnega besedila v obliki: {\"postavke\":[{\"naziv\":\"\",\"kolicina\":0,\"enota\":\"\",\"cenaSkupaj\":0}],\"dobavitelj\":\"\",\"gradbisce\":\"\"}. Pravila: 'naziv' je ime materiala, 'kolicina' je število (decimalna pika), 'enota' je m2/m/kos/vreča itd, 'cenaSkupaj' je končna vrednost postavke z DDV v EUR, 'dobavitelj' je ime TRGOVINE/PODJETJA KI JE IZDALO TA DOKUMENT (v glavi dokumenta, npr. logotip zgoraj) — NIKOLI ni kupec; kupec je 'MAKAN GP d.o.o.', ki ga NE smeš vrniti kot dobavitelja (v tem primeru pusti 'dobavitelj' prazen), 'gradbisce' je ime gradbišča če je omenjeno na dokumentu (npr. ob 'naloženo po nalogu' ali v opombah), sicer prazno. POSEBEN PRIMER — DELOVNI NALOG / REZALNI PLAN (npr. kamnoseštvo OMC, mizarstvo): če dokument NI dobavnica ampak delovni nalog s seznamom rezov oblike 'Nx A x B x D' (N=št. kosov, A in B sta dimenziji v cm, D=debelina), potem vsako vrstico rezov vrni kot svojo postavko: 'naziv' = ime materiala/izdelka (stolpec MATERIAL ali STRANKA ni material — STRANKA je kupec) + dimenzija, npr. 'KASHMIR plošča 88x29x3cm'; 'kolicina' = N × A × B / 10000 (površina v m2, zaokroženo na 2 decimalki); 'enota' = 'm2'; 'cenaSkupaj' = 0 (na delovnem nalogu ni cen, uporabnik jih vnese ročno). Pri tem je 'dobavitelj' podjetje ki je izdalo delovni nalog (npr. OMC).";
-    const MODELI=["gemini-2.5-flash","gemini-3.6-flash","gemini-flash-latest"];
+    const prompt="To je dobavnica (račun/dostavnica) iz trgovine z gradbenim materialom. Preberi jo in vrni SAMO JSON brez dodatnega besedila v obliki: {\"postavke\":[{\"naziv\":\"\",\"kolicina\":0,\"enota\":\"\",\"cenaSkupaj\":0}],\"dobavitelj\":\"\",\"gradbisce\":\"\"}. Pravila: 'naziv' je ime materiala, 'kolicina' je število (decimalna pika), 'enota' je m2/m/kos/vreča itd, 'cenaSkupaj' je končna vrednost postavke z DDV v EUR, 'dobavitelj' je ime TRGOVINE/PODJETJA KI JE IZDALO TA DOKUMENT (v glavi dokumenta, npr. logotip zgoraj) — NIKOLI ni kupec; kupec je 'MAKAN GP d.o.o.', ki ga NE smeš vrniti kot dobavitelja (v tem primeru pusti 'dobavitelj' prazen), 'gradbisce' je ime gradbišča če je omenjeno na dokumentu (npr. ob 'naloženo po nalogu' ali v opombah), sicer prazno. POSEBEN PRIMER — DELOVNI NALOG / REZALNI PLAN (npr. kamnoseštvo OMC, mizarstvo): če dokument NI dobavnica ampak delovni nalog s seznamom rezov po meri (vrstice oblike 'Nx A x B x D'), potem vrni SAMO ENO SKUPNO postavko za celoten nalog: 'naziv' = ime materiala/izdelka (iz stolpca MATERIAL, npr. 'Kašmir kamen 3cm'); 'kolicina' = SKUPNA količina iz polja KOLICINE/OBRAČUN na dokumentu (npr. 3.468 za 3cm/m2) — če je ni, jo izračunaj kot vsoto N × A × B / 10000 po vseh vrsticah; 'enota' = 'm2'; 'cenaSkupaj' = 0 (na delovnem nalogu ni cen, uporabnik jih vnese ročno). Posameznih rezov NE vračaj kot ločene postavke. 'dobavitelj' je podjetje ki je izdalo delovni nalog (npr. 'Granit OMC', glej tudi žig/prevzemno potrdilo).";
+    const MODELI=["gemini-2.5-flash","gemini-2.5-flash-lite","gemini-flash-latest","gemini-3.6-flash"];
     let j=null, lastErr="";
+    const cakaj=ms=>new Promise(r=>setTimeout(r,ms));
+    for(let posk=0;posk<2&&!j;posk++){
+      if(posk>0){ $("ai-status").textContent="⏳ "+t("aiReading")+" (ponoven poskus...)"; await cakaj(4000); }
     for(const m of MODELI){
       try{
         const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+key,{
@@ -1116,6 +1131,7 @@ $("btn-ai-read").addEventListener("click",async ()=>{
         if(j.candidates && j.candidates.length) break;
         lastErr=(j.error&&j.error.message)?j.error.message:("HTTP "+res.status);
         j=null;
+        if(res.status===429||res.status===503) await cakaj(2000);
       }catch(err){ lastErr=err.message; j=null; }
     }
     if(!j){ $("ai-status").textContent="⚠️ "+t("aiErr")+" ("+lastErr+")"; return; }
@@ -1142,10 +1158,18 @@ $("btn-ai-read").addEventListener("click",async ()=>{
 $("btn-mat-save").addEventListener("click",async ()=>{
   const lok=$("mat-lokacija").value, naziv=$("mat-naziv").value.trim();
   if(!lok||!naziv){ toast(t("matFill"),"error"); return; }
+  const editId=matEditId; matEditId=null;
   const base={lokacijaId:lok,datum:new Date().toISOString(),foto:matFotoB64,dobavitelj:$("mat-dobavitelj").value.trim(),dodal:deviceWorker()};
   const extra=window._matExtra; window._matExtra=null;
   closeModal("modal-mat"); toast("📦 "+t("matSaved"));
   try{
+    if(editId){
+      // urejanje obstoječega vnosa — ohrani staro fotografijo, če ni nove
+      const upd={lokacijaId:lok,naziv,kolicina:parseFloat($("mat-kolicina").value)||0,enota:$("mat-enota").value.trim(),cena:parseFloat($("mat-cena").value)||0,dobavitelj:base.dobavitelj};
+      if(matFotoB64) upd.foto=matFotoB64;
+      await updateDoc(doc(db,"material",editId),upd);
+      return;
+    }
     await addDoc(collection(db,"material"),{...base,naziv,kolicina:parseFloat($("mat-kolicina").value)||0,enota:$("mat-enota").value.trim(),cena:parseFloat($("mat-cena").value)||0});
     if(extra && extra.length){
       for(const p of extra) await addDoc(collection(db,"material"),{...base,naziv:p.naziv||"",kolicina:p.kolicina||0,enota:p.enota||"",cena:p.cenaSkupaj||0});
@@ -1172,9 +1196,10 @@ function renderMat(){
   // seznam
   let ms=D.material; if(matTab!=="all") ms=ms.filter(m=>m.lokacijaId===matTab);
   $("mat-count").textContent=ms.length;
-  $("mat-list").innerHTML=ms.length?ms.map(m=>"<div class='list-item' data-mat='"+m.id+"'><div class='item-info'><div class='item-title'>📦 "+m.naziv+"</div><div class='item-sub'>"+(m.kolicina?m.kolicina+" "+(m.enota||""):"")+(m.cena?" • "+m.cena.toFixed(2)+" €":"")+(m.dobavitelj?" • "+m.dobavitelj:"")+"</div><div class='item-sub'>📍 "+locName(m.lokacijaId)+" • "+fmtDate(m.datum)+(m.foto?" • 📷":"")+"</div></div><div style='display:flex;gap:6px;align-items:center'><button class='btn btn-rumena btn-sm' data-move-mat='"+m.id+"'>🔀</button><button class='btn btn-danger btn-sm' data-del-mat='"+m.id+"'>🗑️</button></div></div>").join(""):"<div class='empty'><div class='icon'>📦</div><p>"+t("noMat")+"</p></div>";
+  $("mat-list").innerHTML=ms.length?ms.map(m=>"<div class='list-item' data-mat='"+m.id+"'><div class='item-info'><div class='item-title'>📦 "+m.naziv+"</div><div class='item-sub'>"+(m.kolicina?m.kolicina+" "+(m.enota||""):"")+(m.cena?" • "+m.cena.toFixed(2)+" €":"")+(m.dobavitelj?" • "+m.dobavitelj:"")+"</div><div class='item-sub'>📍 "+locName(m.lokacijaId)+" • "+fmtDate(m.datum)+(m.foto?" • 📷":"")+"</div></div><div style='display:flex;gap:6px;align-items:center'><button class='btn btn-outline btn-sm' data-edit-mat='"+m.id+"'>✏️</button><button class='btn btn-rumena btn-sm' data-move-mat='"+m.id+"'>🔀</button><button class='btn btn-danger btn-sm' data-del-mat='"+m.id+"'>🗑️</button></div></div>").join(""):"<div class='empty'><div class='icon'>📦</div><p>"+t("noMat")+"</p></div>";
   document.querySelectorAll("[data-del-mat]").forEach(b=>b.addEventListener("click",async function(e){ e.stopPropagation(); if(!confirm(t("delMat"))) return; await deleteDoc(doc(db,"material",this.getAttribute("data-del-mat"))); }));
   document.querySelectorAll("[data-move-mat]").forEach(b=>b.addEventListener("click",function(e){ e.stopPropagation(); openMatMove(this.getAttribute("data-move-mat")); }));
+  document.querySelectorAll("[data-edit-mat]").forEach(b=>b.addEventListener("click",function(e){ e.stopPropagation(); openMatEdit(this.getAttribute("data-edit-mat")); }));
   document.querySelectorAll("[data-mat]").forEach(el=>el.addEventListener("click",function(){
     const m=D.material.find(x=>x.id===this.getAttribute("data-mat"));
     if(m&&m.foto){ $("foto-full").src="data:image/jpeg;base64,"+m.foto; openModal("modal-foto"); }
