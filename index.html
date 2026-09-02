@@ -121,6 +121,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
 .pin-pad button:active{background:#EDEFF1;color:#1A1C1F}
 .mat-photo{width:100%;border-radius:var(--R);margin-top:10px;max-height:220px;object-fit:cover}
 .mat-total{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #2A2D31;font-size:0.95rem}
+.mat-total-click{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.mat-total-click:active{opacity:0.6}
 .admin-strip{background:var(--wn);color:#fff;text-align:center;font-size:0.78rem;font-weight:700;padding:5px;letter-spacing:1px}
 /* SVETLA TEMA (C) */
 body.light{--k:#F5F2ED;--tx:#1C1917;--tx2:#57534E;--brd:#E4DED4;--sur:#fff;--sur2:#fff;--dark:#1C1917;--S:0 1px 4px rgba(28,25,23,.06)}
@@ -1181,15 +1183,16 @@ $("btn-mat-save").addEventListener("click",async ()=>{
 function renderMat(){
   // seštevki po gradbiščih
   const byLoc={};
-  D.material.forEach(m=>{ if(!byLoc[m.lokacijaId]) byLoc[m.lokacijaId]={n:0,cena:0,items:{}}; byLoc[m.lokacijaId].n++; byLoc[m.lokacijaId].cena+=m.cena||0; const key=(m.naziv||"").toLowerCase(); if(!byLoc[m.lokacijaId].items[key]) byLoc[m.lokacijaId].items[key]={kolicina:0,enota:m.enota||""}; byLoc[m.lokacijaId].items[key].kolicina+=m.kolicina||0; });
+  D.material.forEach(m=>{ if(!byLoc[m.lokacijaId]) byLoc[m.lokacijaId]={n:0,cena:0,items:{}}; byLoc[m.lokacijaId].n++; byLoc[m.lokacijaId].cena+=m.cena||0; const key=(m.naziv||"").toLowerCase(); if(!byLoc[m.lokacijaId].items[key]) byLoc[m.lokacijaId].items[key]={kolicina:0,enota:m.enota||"",cena:0,lastId:m.id}; const it=byLoc[m.lokacijaId].items[key]; it.kolicina+=m.kolicina||0; it.cena+=m.cena||0; });
   let th="";
   for(const lid in byLoc){
     const g=byLoc[lid];
     th+="<div style='margin-bottom:10px'><div class='mat-total' style='font-weight:800'><span>📍 "+locName(lid)+"</span><span>"+(g.cena?g.cena.toFixed(2)+" €":g.n+" "+t("entries"))+"</span></div>";
-    for(const k in g.items){ const it=g.items[k]; th+="<div class='mat-total'><span style='padding-left:14px'>"+k+"</span><span>"+(it.kolicina?it.kolicina+" "+it.enota:"")+"</span></div>"; }
+    for(const k in g.items){ const it=g.items[k]; th+="<div class='mat-total mat-total-click' data-mat-sum='"+it.lastId+"'><span style='padding-left:14px'>"+k+"</span><span>"+(it.kolicina?it.kolicina+" "+it.enota:"")+(it.cena?" • "+it.cena.toFixed(2)+" €":"")+"</span></div>"; }
     th+="</div>";
   }
   $("mat-totals").innerHTML=th||"<div class='empty'>"+t("noMat")+"</div>";
+  document.querySelectorAll("[data-mat-sum]").forEach(b=>b.addEventListener("click",function(){ openMatEdit(this.getAttribute("data-mat-sum")); }));
   // zavihki
   let tabsH="<button class='tab "+(matTab==="all"?"active":"")+"' data-mtab='all'>"+t("all")+" ("+D.material.length+")</button>";
   tabsH+=D.lokacije.map(l=>{ const n=D.material.filter(m=>m.lokacijaId===l.id).length; return n?"<button class='tab "+(matTab===l.id?"active":"")+"' data-mtab='"+l.id+"'>"+l.naziv+" ("+n+")</button>":""; }).join("");
