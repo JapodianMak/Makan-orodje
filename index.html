@@ -787,10 +787,7 @@ function openPremik(tool){
     const komu=last&&last.izposojaKomu?last.izposojaKomu:"";
     ex.innerHTML="<div class='worker-banner' style='border-color:var(--wn);color:var(--wn)'>🤝 "+t("lentAt")+" <b>"+komu+"</b><br><small>"+t("returnHint")+"</small></div>";
   } else {
-    if(isAdmin()){
-      ex.innerHTML="<button class='btn btn-outline' id='btn-premik-lend' style='margin:0 0 4px'>🤝 "+t("lendTitle")+"</button>";
-      setTimeout(()=>{ const bl=$("btn-premik-lend"); if(bl) bl.addEventListener("click",()=>{ closeModal("modal-premik"); openIzposoja(tool.id); }); },50);
-    } else ex.innerHTML="";
+    ex.innerHTML="";
   }
   $("premik-locations").innerHTML=D.lokacije.map(l=>{
     const dis=l.id===cl?"disabled":"";
@@ -940,11 +937,11 @@ function openZgod(tid){
   let act="";
   if(tool.status==="servis"){
     if(isAdmin()) act="<button class='btn btn-success' id='btn-repair'>✅ "+t("backInUse")+"</button>";
-  } else {
+  } else if(!isAdmin()){
     act="<button class='btn btn-danger' id='btn-report-servis'>🔧 "+t("servisReport")+"</button>";
   }
 
-  act+="<button class='btn btn-rumena' id='btn-need' style='margin-top:6px'>"+t("needIt")+"</button>";
+  if(!isAdmin()) act+="<button class='btn btn-rumena' id='btn-need' style='margin-top:6px'>"+t("needIt")+"</button>";
   act+="<button class='btn btn-outline' id='btn-move-manual' style='margin-top:6px'>📍 "+t("moveManual")+"</button>";
   $("zgod-actions").innerHTML=act;
   const nd=$("btn-need"); if(nd) nd.addEventListener("click",()=>{ closeModal("modal-zgodovina"); openPotreba(tool); });
