@@ -556,7 +556,7 @@ sl: {
   fWarranty:"Garancija do (neobvezno)", warrantyTitle:"Garancija", warrantyUntil:"Garancija velja do", warrantySave:"SHRANI GARANCIJO", warrantyRemove:"Odstrani garancijo", warrantyExp:"GARANCIJA POTEČE", warrantyValid:"garancija do", warrantyCard:"Garancije, ki potečejo (60 dni)", warrantySaved:"Garancija shranjena", setWarranty:"Nastavi garancijo",
   moveMat:"Premakni material", moveTo:"Kam", moveQty:"Količina", moveConfirm:"POTRDI PREMIK", backToStore:"↩️ VRNITEV V TRGOVINO (dobropis)", matMoved:"Material premaknjen", qtyTooBig:"Količina je večja od razpoložljive!",
   needIt:"📅 Rabim to", needTitle:"Javljam potrebo", needWhen:"Kdaj jo rabiš", needWhere:"Za katero gradbišče (neobvezno)", needSave:"JAVI POTREBO", needSaved:"Potreba javljena", needNoWorker:"Najprej naj admin veže telefon na delavca!", neededBy:"rabi",
-  needActTitle:"POTREBA", needDone:"PREMIK IZVEDEN", needCancel:"PREKLIČI POTREBO", needCanceled:"Potreba preklicana", needDoneNote:"izvedena potreba", back:"Nazaj",
+  needActTitle:"POTREBA", needDone:"PREMIK IZVEDEN", needCancel:"PREKLIČI POTREBO", needCanceled:"Potreba preklicana", needDoneNote:"izvedena potreba", back:"Nazaj", moveManual:"Premakni (brez skeniranja)",
   navInv:"INVENTAR", invWhere:"Kje delaš inventuro?", invStart:"ZAČNI INVENTURO", invScanHint:"Skeniraj vse, kar vidiš na tej lokaciji", invFound:"Najdeno", invMissing:"Manjka", invExtra:"Od drugod", invEnd:"KONČAJ IN POROČAJ", invReport:"POROČILO INVENTURE", invFix:"PREMAKNI \"OD DRUGOD\" SEM", invAllOk:"Vse štima — nič ne manjka! 🎉", invMoved:"lokacije popravljene", invPickLoc:"Najprej izberi lokacijo!",
   phoneNotBound:"Telefon NI vezan na delavca!", callAdmin:"Pokliči šefa, naj telefon veže nate (Nastavitve).",
   boundAs:"Skenira", selectWorker:"Izberi delavca", wrongPin:"Napačen PIN!", adminOn:"Admin način vklopljen",
@@ -603,7 +603,7 @@ bih: {
   fWarranty:"Garancija do (opcionalno)", warrantyTitle:"Garancija", warrantyUntil:"Garancija važi do", warrantySave:"SAČUVAJ GARANCIJU", warrantyRemove:"Ukloni garanciju", warrantyExp:"GARANCIJA ISTEKLA", warrantyValid:"garancija do", warrantyCard:"Garancije koje istječu (60 dana)", warrantySaved:"Garancija sačuvana", setWarranty:"Postavi garanciju",
   moveMat:"Premjesti materijal", moveTo:"Kamo", moveQty:"Količina", moveConfirm:"POTVRDI PREMJEŠTAJ", backToStore:"↩️ POVRAT U TRGOVINU (dobropis)", matMoved:"Materijal premješten", qtyTooBig:"Količina je veća od raspoložive!",
   needIt:"📅 Trebam ovo", needTitle:"Javljam potrebu", needWhen:"Kada ti treba", needWhere:"Za koje gradilište (opcionalno)", needSave:"JAVI POTREBU", needSaved:"Potreba javljena", needNoWorker:"Neka admin prvo veže telefon na radnika!", neededBy:"treba",
-  needActTitle:"POTREBA", needDone:"PREMJEŠTAJ IZVRŠEN", needCancel:"OTKAŽI POTREBU", needCanceled:"Potreba otkazana", needDoneNote:"izvršena potreba", back:"Nazad",
+  needActTitle:"POTREBA", needDone:"PREMJEŠTAJ IZVRŠEN", needCancel:"OTKAŽI POTREBU", needCanceled:"Potreba otkazana", needDoneNote:"izvršena potreba", back:"Nazad", moveManual:"Premjesti (bez skeniranja)",
   navInv:"INVENTAR", invWhere:"Gdje radiš inventar?", invStart:"POČNI INVENTAR", invScanHint:"Skeniraj sve što vidiš na ovoj lokaciji", invFound:"Nađeno", invMissing:"Nedostaje", invExtra:"Odnekud drugo", invEnd:"ZAVRŠI I PRIJAVI", invReport:"IZVJEŠTAJ INVENTARA", invFix:"PREMJEŠTI \"ODNEKUD\" OVAMO", invAllOk:"Sve štima — ništa ne nedostaje! 🎉", invMoved:"lokacije ispravljene", invPickLoc:"Prvo izaberi lokaciju!",
   phoneNotBound:"Telefon NIJE vezan za radnika!", callAdmin:"Zovi šefa da veže telefon za tebe (Postavke).",
   boundAs:"Skenira", selectWorker:"Odaberi radnika", wrongPin:"Pogrešan PIN!", adminOn:"Admin način uključen",
@@ -944,8 +944,10 @@ function openZgod(tid){
   }
 
   act+="<button class='btn btn-rumena' id='btn-need' style='margin-top:6px'>"+t("needIt")+"</button>";
+  act+="<button class='btn btn-outline' id='btn-move-manual' style='margin-top:6px'>📍 "+t("moveManual")+"</button>";
   $("zgod-actions").innerHTML=act;
   const nd=$("btn-need"); if(nd) nd.addEventListener("click",()=>{ closeModal("modal-zgodovina"); openPotreba(tool); });
+  const mm=$("btn-move-manual"); if(mm) mm.addEventListener("click",()=>{ closeModal("modal-zgodovina"); openPremik(tool); });
   const rs=$("btn-report-servis"); if(rs) rs.addEventListener("click",()=>{ closeModal("modal-zgodovina"); openServis(tool); });
 
   const rp=$("btn-repair"); if(rp) rp.addEventListener("click",async ()=>{
