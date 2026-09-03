@@ -297,6 +297,7 @@ body.light .tool-display{border-left-color:#1C1917}
     <div class="card-title" data-i18n="backup">Varnostna kopija</div>
     <button class="btn btn-success" id="btn-export">💾 <span data-i18n="exportJSON">IZVOZI JSON</span></button>
     <div class="form-group" style="margin-top:12px"><label data-i18n="importLabel">Uvozi JSON (doda podatke v bazo)</label><input type="file" id="import-file" accept=".json"></div>
+    <button class="btn btn-outline" id="btn-fix-cache" style="margin-top:12px">🔧 <span data-i18n="fixCache">Popravi lokalno bazo</span></button>
   </div>
   <div class="danger-zone no-print"><h3>⚠️ <span data-i18n="dangerZone">Nevarno območje</span></h3><button class="btn btn-danger" id="btn-clear">🗑️ <span data-i18n="clearAll">POČISTI VSE PODATKE</span></button></div>
 </div>
@@ -506,7 +507,7 @@ body.light .tool-display{border-left-color:#1C1917}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import { initializeFirestore, persistentLocalCache, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, updateDoc, getDocs, terminate, clearIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDrP4qVf5PgGgQrdVcLwHnMekpgA-_TVy0",
@@ -567,7 +568,8 @@ sl: {
   aiErr:"AI branje ni uspelo — vpiši ročno.", delMat:"Izbrišem vnos?", noMat:"Še ni vnosov materiala",
   delLoc:"Odstranim lokacijo?", delWorker:"Odstranim delavca?", delTool:"Izbrišem orodje?",
   clear1:"POZOR! To bo izbrisalo VSE podatke v bazi (pri VSEH). Si prepričan?", clear2:"Resnično? Tega ni povratka.",
-  cleared:"Vsi podatki izbrisani", total:"SKUPAJ", entries:"vnosov", pcs:"kos"
+  cleared:"Vsi podatki izbrisani", total:"SKUPAJ", entries:"vnosov", pcs:"kos",
+  fixCache:"Popravi lokalno bazo", fixCacheConfirm:"Izbriše lokalno kopijo baze na tem telefonu in jo potegne čisto iz oblaka (podatki v oblaku ostanejo). Gemini ključ, tema in vezava telefona se NE zbrišejo. Nadaljujem?", fixCacheDone:"Baza popravljena — aplikacija se znova nalaga..."
 },
 bih: {
   subtitle:"Praćenje alata", scanTitle:"Skeniraj QR kod", scanSub:"Usmjeri kameru na naljepku na alatu",
@@ -614,7 +616,8 @@ bih: {
   aiErr:"AI čitanje nije uspjelo — unesi ručno.", delMat:"Obrišem unos?", noMat:"Još nema unosa materijala",
   delLoc:"Uklonim lokaciju?", delWorker:"Uklonim radnika?", delTool:"Obrišem alat?",
   clear1:"POZOR! Ovo će obrisati SVE podatke u bazi (kod SVIH). Jesi li siguran?", clear2:"Stvarno? Nema povratka.",
-  cleared:"Svi podaci obrisani", total:"UKUPNO", entries:"unosa", pcs:"kom"
+  cleared:"Svi podaci obrisani", total:"UKUPNO", entries:"unosa", pcs:"kom",
+  fixCache:"Popravi lokalnu bazu", fixCacheConfirm:"Briše lokalnu kopiju baze na ovom telefonu i povlači čistu iz oblaka (podaci u oblaku ostaju). Gemini ključ, tema i veza telefona se NE brišu. Nastaviti?", fixCacheDone:"Baza popravljena — aplikacija se ponovo učitava..."
 }};
 let LANG = localStorage.getItem("makan_lang") || "sl";
 function t(k){ return (T[LANG] && T[LANG][k]) || T.sl[k] || k; }
@@ -1100,6 +1103,13 @@ $("btn-add-worker").addEventListener("click",async ()=>{ const n=$("new-worker-n
 $("warn-days").addEventListener("change",function(){ setDoc(doc(db,"meta","settings"),{warnDays:parseInt(this.value)||14},{merge:true}).then(()=>toast(t("settingsSaved"))); });
 
 // ===== EXPORT / IMPORT / CLEAR =====
+$("btn-fix-cache").addEventListener("click",async ()=>{
+  if(!confirm(t("fixCacheConfirm"))) return;
+  toast("🔧 "+t("fixCacheDone"));
+  try{ await terminate(db); await clearIndexedDbPersistence(db); }
+  catch(e){ console.error("fixCache:",e); }
+  setTimeout(()=>location.reload(),800);
+});
 $("btn-export").addEventListener("click",()=>{
   const b=new Blob([JSON.stringify(D,null,2)],{type:"application/json"});
   const u=URL.createObjectURL(b), a=document.createElement("a");
