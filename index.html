@@ -1176,7 +1176,7 @@ function openMatEdit(id){
   $("btn-ai-read").style.display="none";
   openModal("modal-mat");
 }
-$("btn-mat-cancel").addEventListener("click",()=>closeModal("modal-mat"));
+$("btn-mat-cancel").addEventListener("click",()=>{ matEditId=null; window._matExtra=null; closeModal("modal-mat"); });
 $("mat-foto").addEventListener("change",async function(){
   const f=this.files[0]; if(!f) return;
   matFotoB64=await compressImage(f);
@@ -1186,7 +1186,19 @@ $("mat-foto").addEventListener("change",async function(){
 function compressImage(file){
   return new Promise(res=>{
     const img=new Image(), rd=new FileReader();
-    rd.onload=e=>{ img.onload=()=>{ const c=document.createElement("canvas"); const sc=Math.min(1,1200/img.width); c.width=img.width*sc; c.height=img.height*sc; c.getContext("2d").drawImage(img,0,0,c.width,c.height); res(c.toDataURL("image/jpeg",0.7).split(",")[1]); }; img.src=e.target.result; };
+    rd.onload=e=>{ img.onload=()=>{
+      // stisni dokler ni pod ~750KB (Firestore limit je 1MB na zapis)
+      let w=img.width, q=0.7, out="";
+      for(let i=0;i<5;i++){
+        const c=document.createElement("canvas"); const sc=Math.min(1,w/img.width);
+        c.width=img.width*sc; c.height=img.height*sc;
+        c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+        out=c.toDataURL("image/jpeg",q).split(",")[1];
+        if(out.length<1000000) break; // ~750KB binarno
+        w*=0.7; q=Math.max(0.4,q-0.15);
+      }
+      res(out);
+    }; img.src=e.target.result; };
     rd.readAsDataURL(file);
   });
 }
@@ -1241,23 +1253,33 @@ $("btn-ai-read").addEventListener("click",async ()=>{
 $("btn-mat-save").addEventListener("click",async ()=>{
   const lok=$("mat-lokacija").value, naziv=$("mat-naziv").value.trim();
   if(!lok||!naziv){ toast(t("matFill"),"error"); return; }
-  const editId=matEditId; matEditId=null;
+  const editId=matEditId;
   const base={lokacijaId:lok,datum:new Date().toISOString(),foto:matFotoB64,dobavitelj:$("mat-dobavitelj").value.trim(),dodal:deviceWorker()};
-  const extra=window._matExtra; window._matExtra=null;
+  const extra=window._matExtra;
+  const kol=parseFloat($("mat-kolicina").value)||0, eno=$("mat-enota").value.trim(), cen=parseFloat($("mat-cena").value)||0;
   closeModal("modal-mat"); toast("📦 "+t("matSaved"));
   try{
     if(editId){
       // urejanje obstoječega vnosa — ohrani staro fotografijo, če ni nove
-      const upd={lokacijaId:lok,naziv,kolicina:parseFloat($("mat-kolicina").value)||0,enota:$("mat-enota").value.trim(),cena:parseFloat($("mat-cena").value)||0,dobavitelj:base.dobavitelj};
+      const upd={lokacijaId:lok,naziv,kolicina:kol,enota:eno,cena:cen,dobavitelj:base.dobavitelj};
       if(matFotoB64) upd.foto=matFotoB64;
       await updateDoc(doc(db,"material",editId),upd);
+      matEditId=null; window._matExtra=null;
       return;
     }
-    await addDoc(collection(db,"material"),{...base,naziv,kolicina:parseFloat($("mat-kolicina").value)||0,enota:$("mat-enota").value.trim(),cena:parseFloat($("mat-cena").value)||0});
+    await addDoc(collection(db,"material"),{...base,naziv,kolicina:kol,enota:eno,cena:cen});
     if(extra && extra.length){
       for(const p of extra) await addDoc(collection(db,"material"),{...base,naziv:p.naziv||"",kolicina:p.kolicina||0,enota:p.enota||"",cena:p.cenaSkupaj||0});
     }
-  }catch(e){ console.error(e); toast("⚠️ "+t("matSavedErr"),"error"); }
+    matEditId=null; window._matExtra=null;
+  }catch(e){
+    console.error(e);
+    // napaka — vrni obrazec z vsemi podatki, da nič ne izgine
+    toast("⚠️ "+t("matSavedErr")+" ("+(e.code||e.message||e)+")","error");
+    if(editId) matEditId=editId;
+    window._matExtra=extra;
+    openModal("modal-mat");
+  }
 });
 let matByLoc={}, curMatDetail=null;
 function renderMat(){
