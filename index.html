@@ -563,7 +563,7 @@ sl: {
   adminOff:"Admin način zaklenjen", pinChanged:"PIN spremenjen", newPinPrompt:"Vnesi NOV 4-mestni PIN:",
   keyPrompt:"Prilepi Gemini API ključ:", keySaved:"Ključ shranjen",
   matSaved:"Vnos materiala shranjen", matSavedErr:"Shranjevanje ni uspelo — preveri povezavo in poskusi znova", moveErr:"Premik ni uspel — nič ni bilo odšteto, poskusi znova", delErr:"Brisanje ni uspelo", matFill:"Izpolni gradbišče in postavko!", aiNoKey:"Najprej v Nastavitvah shrani Gemini ključ!",
-  aiNoFoto:"Najprej slikaj dobavnico!", aiReading:"AI prebira dobavnico...", aiDone:"Prebrano — preveri in popravi podatke!",
+  aiNoFoto:"Najprej slikaj dobavnico!", aiReading:"AI prebira dobavnico...", aiWait:"počakaj", aiDone:"Prebrano — preveri in popravi podatke!",
   aiErr:"AI branje ni uspelo — vpiši ročno.", delMat:"Izbrišem vnos?", noMat:"Še ni vnosov materiala",
   delLoc:"Odstranim lokacijo?", delWorker:"Odstranim delavca?", delTool:"Izbrišem orodje?",
   clear1:"POZOR! To bo izbrisalo VSE podatke v bazi (pri VSEH). Si prepričan?", clear2:"Resnično? Tega ni povratka.",
@@ -610,7 +610,7 @@ bih: {
   adminOff:"Admin način zaključan", pinChanged:"PIN promijenjen", newPinPrompt:"Unesi NOVI 4-cifreni PIN:",
   keyPrompt:"Zalijepi Gemini API ključ:", keySaved:"Ključ sačuvan",
   matSaved:"Unos materijala sačuvan", matSavedErr:"Čuvanje nije uspjelo — provjeri vezu i pokušaj ponovo", moveErr:"Premještanje nije uspjelo — ništa nije odbijeno, pokušaj ponovo", delErr:"Brisanje nije uspjelo", matFill:"Popuni gradilište i stavku!", aiNoKey:"Prvo u Postavkama sačuvaj Gemini ključ!",
-  aiNoFoto:"Prvo slikaj dostavnicu!", aiReading:"AI čita dostavnicu...", aiDone:"Pročitano — provjeri i ispravi podatke!",
+  aiNoFoto:"Prvo slikaj dostavnicu!", aiReading:"AI čita dostavnicu...", aiWait:"sačekaj", aiDone:"Pročitano — provjeri i ispravi podatke!",
   aiErr:"AI čitanje nije uspjelo — unesi ručno.", delMat:"Obrišem unos?", noMat:"Još nema unosa materijala",
   delLoc:"Uklonim lokaciju?", delWorker:"Uklonim radnika?", delTool:"Obrišem alat?",
   clear1:"POZOR! Ovo će obrisati SVE podatke u bazi (kod SVIH). Jesi li siguran?", clear2:"Stvarno? Nema povratka.",
@@ -1212,8 +1212,13 @@ $("btn-ai-read").addEventListener("click",async ()=>{
     const MODELI=["gemini-2.5-flash","gemini-2.5-flash-lite","gemini-flash-latest","gemini-3.6-flash"];
     let j=null, lastErr="";
     const cakaj=ms=>new Promise(r=>setTimeout(r,ms));
-    for(let posk=0;posk<2&&!j;posk++){
-      if(posk>0){ $("ai-status").textContent="⏳ "+t("aiReading")+" (ponoven poskus...)"; await cakaj(4000); }
+    for(let posk=0;posk<3&&!j;posk++){
+      if(posk>0){
+        // API sam pove koliko počakati ("Please retry in 42.9s")
+        const mm=/retry in ([\d.]+)s/i.exec(lastErr);
+        let wait=mm?Math.min(70,Math.ceil(parseFloat(mm[1]))+2):5;
+        for(let s=wait;s>0&&!j;s--){ $("ai-status").textContent="⏳ "+t("aiReading")+" ("+t("aiWait")+" "+s+"s...)"; await cakaj(1000); }
+      }
     for(const m of MODELI){
       try{
         const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+key,{
