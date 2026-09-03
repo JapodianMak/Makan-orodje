@@ -310,7 +310,7 @@ body.light .tool-display{border-left-color:#1C1917}
     <div style="font-weight:700;margin:14px 0 10px;color:var(--tx2);text-transform:uppercase;font-size:0.85rem" data-i18n="newLocation">Nova lokacija:</div>
     <div id="premik-extra"></div>
     <div class="loc-grid" id="premik-locations"></div>
-    <div class="form-group"><label data-i18n="note">Opomba (neobvezno)</label><textarea id="premik-note" rows="2" data-i18n-ph="notePh" placeholder="Npr. potrebno servisiranje..."></textarea></div>
+    <div class="form-group" id="premik-note-wrap"><label data-i18n="note">Opomba (neobvezno)</label><textarea id="premik-note" rows="2" data-i18n-ph="notePh" placeholder="Npr. potrebno servisiranje..."></textarea></div>
     <button class="btn btn-success" id="btn-premik-confirm" disabled>✓ <span data-i18n="confirmMove">POTRDI PREMIK</span></button>
     <button class="btn btn-outline" id="btn-premik-cancel" style="margin-top:8px" data-i18n="cancel">Prekliči</button>
   </div>
@@ -772,13 +772,13 @@ function openPremik(tool){
   const cl=getLoc(tool.id);
   $("premik-tool-info").innerHTML="<div class='tool-name'>"+tool.naziv+"</div><div class='tool-detail'>"+(tool.tip||"")+(tool.serijska?" • Inv. "+tool.serijska:"")+"</div><div class='tool-loc'>📍 "+t("current")+": "+locName(cl)+"</div>"+(tool.status==="servis"?"<div class='tool-detail' style='color:var(--er);font-weight:700'>🔧 "+t("onService")+"</div>":"");
   const dw=deviceWorker(), banner=$("premik-worker-banner");
+  $("premik-note-wrap").style.display=isAdmin()?"":"none";
   if(dw && D.delavci.find(d=>d.id===dw)){
     banner.className="worker-banner"; banner.innerHTML="👤 "+t("boundAs")+": <b>"+deviceWorkerName()+"</b>";
-  } else if(isAdmin()){
-    banner.className="worker-banner"; banner.innerHTML="<select id='premik-worker-admin' style='width:100%;padding:12px;border:1.5px solid var(--brd);border-radius:10px;font-size:1rem;background:var(--sur2);color:var(--tx)'><option value=''>-- "+t("selectWorker")+" --</option>"+D.delavci.map(d=>"<option value='"+d.id+"'>"+d.ime+"</option>").join("")+"</select>";
-    setTimeout(()=>{ const s=$("premik-worker-admin"); if(s) s.addEventListener("change",()=>{ $("btn-premik-confirm").disabled=!(selLoc&&s.value); }); },50);
-  } else {
+  } else if(!isAdmin()){
     banner.className="worker-banner nobind"; banner.innerHTML="⚠️ "+t("phoneNotBound")+"<br><small>"+t("callAdmin")+"</small>";
+  } else {
+    banner.className=""; banner.innerHTML="";
   }
   // izposoja info / gumb
   const ex=$("premik-extra");
@@ -787,8 +787,10 @@ function openPremik(tool){
     const komu=last&&last.izposojaKomu?last.izposojaKomu:"";
     ex.innerHTML="<div class='worker-banner' style='border-color:var(--wn);color:var(--wn)'>🤝 "+t("lentAt")+" <b>"+komu+"</b><br><small>"+t("returnHint")+"</small></div>";
   } else {
-    ex.innerHTML="<button class='btn btn-outline' id='btn-premik-lend' style='margin:0 0 4px'>🤝 "+t("lendTitle")+"</button>";
-    setTimeout(()=>{ const bl=$("btn-premik-lend"); if(bl) bl.addEventListener("click",()=>{ closeModal("modal-premik"); openIzposoja(tool.id); }); },50);
+    if(isAdmin()){
+      ex.innerHTML="<button class='btn btn-outline' id='btn-premik-lend' style='margin:0 0 4px'>🤝 "+t("lendTitle")+"</button>";
+      setTimeout(()=>{ const bl=$("btn-premik-lend"); if(bl) bl.addEventListener("click",()=>{ closeModal("modal-premik"); openIzposoja(tool.id); }); },50);
+    } else ex.innerHTML="";
   }
   $("premik-locations").innerHTML=D.lokacije.map(l=>{
     const dis=l.id===cl?"disabled":"";
@@ -807,14 +809,13 @@ function openPremik(tool){
   openModal("modal-premik");
 }
 function updatePremikBtn(){
-  const hasWorker = deviceWorker() || (isAdmin() && $("premik-worker-admin")?.value);
+  const hasWorker = deviceWorker() || isAdmin();
   $("btn-premik-confirm").disabled=!(selLoc&&hasWorker);
 }
 $("btn-premik-confirm").addEventListener("click",async ()=>{
   const tool=D.orodja.find(o=>o.id===curTool); if(!tool||!selLoc) return;
   let wid=deviceWorker();
-  if(!wid && isAdmin()) wid=$("premik-worker-admin")?.value||"";
-  if(!wid){ toast(t("fillAll"),"error"); return; }
+  if(!wid && !isAdmin()){ toast(t("needNoWorker"),"warn"); return; }
   const fl=getLoc(tool.id);
   const op=$("premik-note").value.trim(), cilj=selLoc;
   closeModal("modal-premik");
