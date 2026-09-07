@@ -507,7 +507,7 @@ body.light .tool-display{border-left-color:#1C1917}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import { initializeFirestore, persistentLocalCache, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, updateDoc, getDocs, terminate, clearIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, updateDoc, getDocs, terminate } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDrP4qVf5PgGgQrdVcLwHnMekpgA-_TVy0",
@@ -517,8 +517,15 @@ const firebaseConfig = {
   messagingSenderId: "243380070",
   appId: "1:243380070:web:d88d4ce68f6df79ce462a7"
 };
+// Enkratno počisti staro (pokvarjeno) lokalno bazo — od tu naprej se podatki NE hranijo več na telefonu,
+// zato se napaka b815/MutationBatchResult ne more nikoli več pojaviti.
+try{
+  if(window.indexedDB && indexedDB.databases){
+    indexedDB.databases().then(list=>{ (list||[]).forEach(d=>{ if(d.name && d.name.indexOf("firestore")===0){ try{ indexedDB.deleteDatabase(d.name); }catch(e){} } }); });
+  }
+}catch(e){ console.error("indexedDB cleanup:",e); }
 const app = initializeApp(firebaseConfig);
-const db = initializeFirestore(app, { localCache: persistentLocalCache() });
+const db = getFirestore(app); // samo pomnilnik — brez lokalnega shranjevanja, brez korupcije
 
 // ===== I18N =====
 const T = {
@@ -1116,8 +1123,13 @@ async function autoFixCache(){
       localStorage.setItem("makan_mat_draft",JSON.stringify(draft));
     }
   }catch(e){ console.error("draft save:",e); }
-  try{ await terminate(db); await clearIndexedDbPersistence(db); }
-  catch(e){ console.error("fixCache:",e); }
+  try{
+    await terminate(db);
+    if(window.indexedDB && indexedDB.databases){
+      const list=await indexedDB.databases();
+      (list||[]).forEach(d=>{ if(d.name && d.name.indexOf("firestore")===0){ try{ indexedDB.deleteDatabase(d.name); }catch(e){} } });
+    }
+  }catch(e){ console.error("fixCache:",e); }
   setTimeout(()=>location.reload(),1200);
 }
 function isCacheCorruption(m){
