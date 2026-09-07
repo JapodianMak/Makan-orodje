@@ -300,6 +300,7 @@ body.light .tool-display{border-left-color:#1C1917}
     <button class="btn btn-outline" id="btn-fix-cache" style="margin-top:12px">🔧 <span data-i18n="fixCache">Popravi lokalno bazo</span></button>
   </div>
   <div class="danger-zone no-print"><h3>⚠️ <span data-i18n="dangerZone">Nevarno območje</span></h3><button class="btn btn-danger" id="btn-clear">🗑️ <span data-i18n="clearAll">POČISTI VSE PODATKE</span></button></div>
+  <div style="text-align:center;color:var(--tx2);font-size:0.8rem;margin:18px 0 6px">MAKAN GP · <span id="app-version"></span></div>
 </div>
 
 <!-- MODAL: PREMIK -->
@@ -524,8 +525,10 @@ try{
     indexedDB.databases().then(list=>{ (list||[]).forEach(d=>{ if(d.name && d.name.indexOf("firestore")===0){ try{ indexedDB.deleteDatabase(d.name); }catch(e){} } }); });
   }
 }catch(e){ console.error("indexedDB cleanup:",e); }
+const APP_VERSION="v38";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app); // samo pomnilnik — brez lokalnega shranjevanja, brez korupcije
+document.getElementById("app-version").textContent=APP_VERSION;
 
 // ===== I18N =====
 const T = {
