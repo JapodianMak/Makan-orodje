@@ -569,7 +569,7 @@ sl: {
   delLoc:"Odstranim lokacijo?", delWorker:"Odstranim delavca?", delTool:"Izbrišem orodje?",
   clear1:"POZOR! To bo izbrisalo VSE podatke v bazi (pri VSEH). Si prepričan?", clear2:"Resnično? Tega ni povratka.",
   cleared:"Vsi podatki izbrisani", total:"SKUPAJ", entries:"vnosov", pcs:"kos",
-  fixCache:"Popravi lokalno bazo", fixCacheConfirm:"Izbriše lokalno kopijo baze na tem telefonu in jo potegne čisto iz oblaka (podatki v oblaku ostanejo). Gemini ključ, tema in vezava telefona se NE zbrišejo. Nadaljujem?", fixCacheDone:"Baza popravljena — aplikacija se znova nalaga..."
+  fixCache:"Popravi lokalno bazo", fixCacheConfirm:"Izbriše lokalno kopijo baze na tem telefonu in jo potegne čisto iz oblaka (podatki v oblaku ostanejo). Gemini ključ, tema in vezava telefona se NE zbrišejo. Nadaljujem?", fixCacheDone:"Baza popravljena — aplikacija se znova nalaga...", matDraftRestored:"Osnutek vnosa obnovljen — samo shrani"
 },
 bih: {
   subtitle:"Praćenje alata", scanTitle:"Skeniraj QR kod", scanSub:"Usmjeri kameru na naljepku na alatu",
@@ -617,7 +617,7 @@ bih: {
   delLoc:"Uklonim lokaciju?", delWorker:"Uklonim radnika?", delTool:"Obrišem alat?",
   clear1:"POZOR! Ovo će obrisati SVE podatke u bazi (kod SVIH). Jesi li siguran?", clear2:"Stvarno? Nema povratka.",
   cleared:"Svi podaci obrisani", total:"UKUPNO", entries:"unosa", pcs:"kom",
-  fixCache:"Popravi lokalnu bazu", fixCacheConfirm:"Briše lokalnu kopiju baze na ovom telefonu i povlači čistu iz oblaka (podaci u oblaku ostaju). Gemini ključ, tema i veza telefona se NE brišu. Nastaviti?", fixCacheDone:"Baza popravljena — aplikacija se ponovo učitava..."
+  fixCache:"Popravi lokalnu bazu", fixCacheConfirm:"Briše lokalnu kopiju baze na ovom telefonu i povlači čistu iz oblaka (podaci u oblaku ostaju). Gemini ključ, tema i veza telefona se NE brišu. Nastaviti?", fixCacheDone:"Baza popravljena — aplikacija se ponovo učitava...", matDraftRestored:"Nacrt unosa vraćen — samo sačuvaj"
 }};
 let LANG = localStorage.getItem("makan_lang") || "sl";
 function t(k){ return (T[LANG] && T[LANG][k]) || T.sl[k] || k; }
@@ -1103,12 +1103,32 @@ $("btn-add-worker").addEventListener("click",async ()=>{ const n=$("new-worker-n
 $("warn-days").addEventListener("change",function(){ setDoc(doc(db,"meta","settings"),{warnDays:parseInt(this.value)||14},{merge:true}).then(()=>toast(t("settingsSaved"))); });
 
 // ===== EXPORT / IMPORT / CLEAR =====
-$("btn-fix-cache").addEventListener("click",async ()=>{
-  if(!confirm(t("fixCacheConfirm"))) return;
-  toast("🔧 "+t("fixCacheDone"));
+let fixingCache=false;
+async function autoFixCache(){
+  if(fixingCache) return; fixingCache=true;
+  toast("🔧 "+t("fixCacheDone"),"warn");
+  // če je odprt vnos materiala — shrani osnutek, da po osvežitvi nič ne izgine
+  try{
+    if($("modal-mat").classList.contains("active")){
+      const draft={lok:$("mat-lokacija").value,naziv:$("mat-naziv").value,kol:$("mat-kolicina").value,
+        eno:$("mat-enota").value,cen:$("mat-cena").value,dob:$("mat-dobavitelj").value,
+        editId:matEditId,extra:window._matExtra||null};
+      localStorage.setItem("makan_mat_draft",JSON.stringify(draft));
+    }
+  }catch(e){ console.error("draft save:",e); }
   try{ await terminate(db); await clearIndexedDbPersistence(db); }
   catch(e){ console.error("fixCache:",e); }
-  setTimeout(()=>location.reload(),800);
+  setTimeout(()=>location.reload(),1200);
+}
+function isCacheCorruption(m){
+  m=String(m||"");
+  return m.includes("INTERNAL ASSERTION")||m.includes("MutationBatchResult")||m.includes("ID: b815")||m.includes("ID: ca9");
+}
+window.addEventListener("error",e=>{ if(isCacheCorruption(e.message)||isCacheCorruption(e.error&&(e.error.message||e.error))) autoFixCache(); });
+window.addEventListener("unhandledrejection",e=>{ if(isCacheCorruption(e.reason&&(e.reason.message||e.reason))) autoFixCache(); });
+$("btn-fix-cache").addEventListener("click",async ()=>{
+  if(!confirm(t("fixCacheConfirm"))) return;
+  autoFixCache();
 });
 $("btn-export").addEventListener("click",()=>{
   const b=new Blob([JSON.stringify(D,null,2)],{type:"application/json"});
@@ -1482,7 +1502,24 @@ function invBack(){
 }
 
 // ===== RENDER ALL + INIT =====
-function renderAll(){ renderL(); renderO(); renderSet(); renderMat(); }
+function renderAll(){ renderL(); renderO(); renderSet(); renderMat(); restoreMatDraft(); }
+// obnovi nedokončan vnos materiala po samodejnem popravilu baze
+function restoreMatDraft(){
+  const raw=localStorage.getItem("makan_mat_draft"); if(!raw) return;
+  if(!D.lokacije.length) return; // počakaj, da se lokacije naložijo
+  localStorage.removeItem("makan_mat_draft");
+  try{
+    const d=JSON.parse(raw);
+    $("mat-lokacija").innerHTML=D.lokacije.map(l=>"<option value='"+l.id+"'"+(l.id===d.lok?" selected":"")+">"+l.naziv+"</option>").join("");
+    $("mat-naziv").value=d.naziv||""; $("mat-kolicina").value=d.kol||""; $("mat-enota").value=d.eno||"";
+    $("mat-cena").value=d.cen||""; $("mat-dobavitelj").value=d.dob||"";
+    matEditId=d.editId||null; window._matExtra=d.extra||null;
+    matFotoB64=""; $("mat-foto-preview").style.display="none"; $("ai-status").textContent="";
+    $("btn-ai-read").style.display="none";
+    openModal("modal-mat");
+    toast("📦 "+t("matDraftRestored"),"warn");
+  }catch(e){ console.error("draft restore:",e); }
+}
 document.querySelectorAll(".modal-overlay").forEach(m=>{ m.addEventListener("click",function(e){ if(e.target===this) this.classList.remove("active"); }); });
 applyTheme(); applyI18n(); applyMode(); listen(); initScan();
 </script>
