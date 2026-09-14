@@ -525,7 +525,7 @@ try{
     indexedDB.databases().then(list=>{ (list||[]).forEach(d=>{ if(d.name && d.name.indexOf("firestore")===0){ try{ indexedDB.deleteDatabase(d.name); }catch(e){} } }); });
   }
 }catch(e){ console.error("indexedDB cleanup:",e); }
-const APP_VERSION="v39";
+const APP_VERSION="v40";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app); // samo pomnilnik — brez lokalnega shranjevanja, brez korupcije
 document.getElementById("app-version").textContent=APP_VERSION;
@@ -1139,8 +1139,19 @@ function isCacheCorruption(m){
   m=String(m||"");
   return m.includes("INTERNAL ASSERTION")||m.includes("MutationBatchResult")||m.includes("ID: b815")||m.includes("ID: ca9");
 }
-window.addEventListener("error",e=>{ if(isCacheCorruption(e.message)||isCacheCorruption(e.error&&(e.error.message||e.error))) autoFixCache(); });
-window.addEventListener("unhandledrejection",e=>{ if(isCacheCorruption(e.reason&&(e.reason.message||e.reason))) autoFixCache(); });
+// napaka baze — NIKOLI samodejnega reseta; pokaži gumb in besedilo napake, uporabnik sam odloči
+function showDbFix(msg){
+  toast("⚠️ "+String(msg||"").slice(0,140),"error");
+  if(document.getElementById("db-fix-fab")) return;
+  const b=document.createElement("button");
+  b.id="db-fix-fab";
+  b.style.cssText="position:fixed;bottom:92px;right:16px;z-index:9999;background:#e74c3c;color:#fff;padding:14px 18px;border:none;border-radius:14px;font-weight:800;font-size:0.95rem;box-shadow:0 4px 14px rgba(0,0,0,.45)";
+  b.innerHTML="🔧 "+t("fixCache");
+  b.addEventListener("click",()=>autoFixCache());
+  document.body.appendChild(b);
+}
+window.addEventListener("error",e=>{ const m=e.message||(e.error&&(e.error.message||e.error)); if(isCacheCorruption(m)) showDbFix(m); });
+window.addEventListener("unhandledrejection",e=>{ const m=e.reason&&(e.reason.message||e.reason); if(isCacheCorruption(m)) showDbFix(m); });
 $("btn-fix-cache").addEventListener("click",async ()=>{
   if(!confirm(t("fixCacheConfirm"))) return;
   autoFixCache();
@@ -1344,6 +1355,7 @@ $("btn-mat-save").addEventListener("click",async ()=>{
     }catch(e){
       console.error("mat save item:",e);
       failed.push(items[i]);
+      failed.err=(e.code||e.message||String(e)).slice(0,120);
     }
   }
   if(!failed.length){
@@ -1351,7 +1363,7 @@ $("btn-mat-save").addEventListener("click",async ()=>{
     toast("✅ "+t("matSaved")+" "+items.length+"/"+items.length);
   }else{
     // obrazec nazaj SAMO z neshranjenimi postavkami — brez dvojnikov
-    toast("⚠️ "+t("matSaved")+" "+(items.length-failed.length)+"/"+items.length+" — "+t("matSavedErr"),"error");
+    toast("⚠️ "+t("matSaved")+" "+(items.length-failed.length)+"/"+items.length+" — "+(failed.err||t("matSavedErr")),"error");
     $("mat-naziv").value=failed[0].naziv; $("mat-kolicina").value=failed[0].kolicina||"";
     $("mat-enota").value=failed[0].enota||""; $("mat-cena").value=failed[0].cena||"";
     window._matExtra=failed.slice(1).map(f=>({naziv:f.naziv,kolicina:f.kolicina,enota:f.enota,cenaSkupaj:f.cena}));
