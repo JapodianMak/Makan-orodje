@@ -516,7 +516,7 @@ body.light .tool-display{border-left-color:#1C1917}
 // REST uporablja navadne HTTPS zahteve — isto pot kot Firebase konzola, ki deluje povsod.
 const FS_KEY="AIzaSyDrP4qVf5PgGgQrdVcLwHnMekpgA-_TVy0";
 const FS_BASE="https://firestore.googleapis.com/v1/projects/makan-orodje/databases/(default)/documents";
-const APP_VERSION="v46";
+const APP_VERSION="v47";
 const db={}; // samo oznaka, ohrani obstoječe klice doc(db,...) / collection(db,...)
 
 function fsWrap(v){
@@ -576,10 +576,29 @@ async function deleteDoc(ref){
   refreshSoon(ref.col);
 }
 async function getDocs(colRef){
-  const res=await fetch(FS_BASE+"/"+colRef.col+"?key="+FS_KEY+"&pageSize=1000");
+  const arr=await fsListAll(colRef.col,null);
+  return {docs:arr.map(o=>({id:o.id,data:()=>{const c={...o};delete c.id;return c;},ref:{col:colRef.col,id:o.id}}))};
+}
+// pravilno listanje po straneh (Firestore razreže velike odgovore) + možnost maske polj
+async function fsListAll(name,maskFields){
+  const out=[]; let token="";
+  const mask=maskFields?maskFields.map(f=>"mask.fieldPaths="+encodeURIComponent(f)).join("&"):"";
+  do{
+    const res=await fetch(FS_BASE+"/"+name+"?key="+FS_KEY+"&pageSize=1000"+(token?"&pageToken="+encodeURIComponent(token):"")+(mask?"&"+mask:""));
+    const j=await res.json().catch(()=>null);
+    if(!res.ok) throw fsErr(j,res);
+    (j.documents||[]).forEach(d=>out.push({id:d.name.split("/").pop(),...fsUnwrapAll(d.fields)}));
+    token=j.nextPageToken||"";
+  }while(token);
+  return out;
+}
+// cel dokument (vključno s fotografijo) — samo ko ga res rabimo
+async function fsGetOne(col,id){
+  const res=await fetch(FS_BASE+"/"+col+"/"+id+"?key="+FS_KEY);
+  if(res.status===404) return null;
   const j=await res.json().catch(()=>null);
   if(!res.ok) throw fsErr(j,res);
-  return {docs:(j.documents||[]).map(d=>{ const id=d.name.split("/").pop(); return {id,data:()=>fsUnwrapAll(d.fields),ref:{col:colRef.col,id}}; })};
+  return {id,...fsUnwrapAll(j.fields)};
 }
 let refreshTimer=null;
 function refreshSoon(col){
@@ -722,10 +741,9 @@ function dbStatus(){
 }
 async function refreshCol(name){
   try{
-    const res=await fetch(FS_BASE+"/"+name+"?key="+FS_KEY+"&pageSize=1000");
-    const j=await res.json().catch(()=>null);
-    if(!res.ok) throw fsErr(j,res);
-    const arr=(j.documents||[]).map(d=>({id:d.name.split("/").pop(),...fsUnwrapAll(d.fields)}));
+    // material brez fotografij (težkih) — foto se potegne posebej, ko odpreš vnos
+    const mask=name==="material"?["naziv","kolicina","enota","cena","lokacijaId","dobavitelj","datum","dodal"]:null;
+    const arr=await fsListAll(name,mask);
     if(name==="dogodki"||name==="material") arr.sort((a,b)=>(b.datum||"").localeCompare(a.datum||""));
     D[name]=arr;
     DBST[name]={ok:true,n:arr.length,t:new Date().toLocaleTimeString("sl-SI"),cache:false};
@@ -1253,11 +1271,17 @@ $("btn-fix-cache").addEventListener("click",async ()=>{
   if(!confirm(t("fixCacheConfirm"))) return;
   autoFixCache();
 });
-$("btn-export").addEventListener("click",()=>{
-  const b=new Blob([JSON.stringify(D,null,2)],{type:"application/json"});
-  const u=URL.createObjectURL(b), a=document.createElement("a");
-  a.href=u; a.download="makan_orodje_backup_"+new Date().toISOString().slice(0,10)+".json"; a.click(); URL.revokeObjectURL(u);
-  toast("💾 "+t("exported"));
+$("btn-export").addEventListener("click",async ()=>{
+  toast("⏳ "+t("loadingData"));
+  try{
+    // material s fotografijami (polna varnostna kopija)
+    const matFull=await fsListAll("material",null);
+    const out={...D,material:matFull};
+    const b=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
+    const u=URL.createObjectURL(b), a=document.createElement("a");
+    a.href=u; a.download="makan_orodje_backup_"+new Date().toISOString().slice(0,10)+".json"; a.click(); URL.revokeObjectURL(u);
+    toast("💾 "+t("exported"));
+  }catch(e){ console.error(e); toast("⚠️ "+(e.message||e),"error"); }
 });
 $("import-file").addEventListener("change",function(){
   const f=this.files[0]; if(!f) return;
@@ -1318,16 +1342,21 @@ $("btn-add-mat").addEventListener("click",()=>{
   $("btn-ai-read").style.display=localStorage.getItem("makan_gemini")?"":"none";
   openModal("modal-mat");
 });
-function openMatEdit(id){
+async function openMatEdit(id){
   const m=D.material.find(x=>x.id===id); if(!m) return;
   matEditId=id;
   $("mat-naziv").value=m.naziv||""; $("mat-kolicina").value=m.kolicina||""; $("mat-enota").value=m.enota||"";
   $("mat-cena").value=m.cena||""; $("mat-dobavitelj").value=m.dobavitelj||"";
   $("mat-lokacija").innerHTML=D.lokacije.map(l=>"<option value='"+l.id+"'"+(l.id===m.lokacijaId?" selected":"")+">"+l.naziv+"</option>").join("");
   matFotoB64=""; $("mat-foto").value=""; $("ai-status").textContent="";
-  const p=$("mat-foto-preview"); if(m.foto){ p.src="data:image/jpeg;base64,"+m.foto; p.style.display="block"; } else p.style.display="none";
+  const p=$("mat-foto-preview"); p.style.display="none";
   $("btn-ai-read").style.display="none";
   openModal("modal-mat");
+  // fotografija ni v seznamskih podatkih — potegni jo posebej
+  try{
+    const full=await fsGetOne("material",id);
+    if(full&&full.foto&&matEditId===id){ p.src="data:image/jpeg;base64,"+full.foto; p.style.display="block"; }
+  }catch(e){ console.error("mat foto:",e); }
 }
 $("btn-mat-cancel").addEventListener("click",()=>{ matEditId=null; window._matExtra=null; closeModal("modal-mat"); });
 $("mat-foto").addEventListener("change",async function(){
@@ -1553,7 +1582,8 @@ $("btn-matmove-confirm").addEventListener("click",async ()=>{
     } else {
       // najprej USTVARI nov zapis na cilju, šele potem odštej izvor —
       // če karkoli spodleti, izvor ostane nedotaknjen
-      const nov=await addDoc(collection(db,"material"),{lokacijaId:target,naziv:m.naziv,kolicina:qty,enota:m.enota||"",cena:(m.cena||0)*delez,dobavitelj:m.dobavitelj||"",foto:m.foto||"",datum:new Date().toISOString(),dodal:deviceWorker()});
+      let foto=""; try{ const full=await fsGetOne("material",m.id); foto=(full&&full.foto)||""; }catch(e){}
+      const nov=await addDoc(collection(db,"material"),{lokacijaId:target,naziv:m.naziv,kolicina:qty,enota:m.enota||"",cena:(m.cena||0)*delez,dobavitelj:m.dobavitelj||"",foto:foto,datum:new Date().toISOString(),dodal:deviceWorker()});
       await updateDoc(doc(db,"material",m.id),{kolicina:m.kolicina-qty,cena:(m.cena||0)*(1-delez)});
     }
     toast("🔀 "+t("matMoved"));
