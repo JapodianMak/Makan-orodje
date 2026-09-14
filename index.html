@@ -525,7 +525,7 @@ try{
     indexedDB.databases().then(list=>{ (list||[]).forEach(d=>{ if(d.name && d.name.indexOf("firestore")===0){ try{ indexedDB.deleteDatabase(d.name); }catch(e){} } }); });
   }
 }catch(e){ console.error("indexedDB cleanup:",e); }
-const APP_VERSION="v41";
+const APP_VERSION="v42";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app); // samo pomnilnik — brez lokalnega shranjevanja, brez korupcije
 document.getElementById("app-version").textContent=APP_VERSION;
@@ -573,7 +573,7 @@ sl: {
   boundAs:"Skenira", selectWorker:"Izberi delavca", wrongPin:"Napačen PIN!", adminOn:"Admin način vklopljen",
   adminOff:"Admin način zaklenjen", pinChanged:"PIN spremenjen", newPinPrompt:"Vnesi NOV 4-mestni PIN:",
   keyPrompt:"Prilepi Gemini API ključ:", keySaved:"Ključ shranjen",
-  matSaved:"Vnos materiala shranjen", matSaving:"Shranjujem", loadErr:"Nalaganje podatkov ni uspelo", matSavedErr:"Shranjevanje ni uspelo — preveri povezavo in poskusi znova", moveErr:"Premik ni uspel — nič ni bilo odšteto, poskusi znova", delErr:"Brisanje ni uspelo", matFill:"Izpolni gradbišče in postavko!", aiNoKey:"Najprej v Nastavitvah shrani Gemini ključ!",
+  matSaved:"Vnos materiala shranjen", matSaving:"Shranjujem", loadErr:"Nalaganje podatkov ni uspelo", loadingData:"Nalagam podatke...", matSavedErr:"Shranjevanje ni uspelo — preveri povezavo in poskusi znova", moveErr:"Premik ni uspel — nič ni bilo odšteto, poskusi znova", delErr:"Brisanje ni uspelo", matFill:"Izpolni gradbišče in postavko!", aiNoKey:"Najprej v Nastavitvah shrani Gemini ključ!",
   aiNoFoto:"Najprej slikaj dobavnico!", aiReading:"AI prebira dobavnico...", aiWait:"počakaj", aiDone:"Prebrano — preveri in popravi podatke!",
   aiErr:"AI branje ni uspelo — vpiši ročno.", delMat:"Izbrišem vnos?", noMat:"Še ni vnosov materiala",
   delLoc:"Odstranim lokacijo?", delWorker:"Odstranim delavca?", delTool:"Izbrišem orodje?",
@@ -621,7 +621,7 @@ bih: {
   boundAs:"Skenira", selectWorker:"Odaberi radnika", wrongPin:"Pogrešan PIN!", adminOn:"Admin način uključen",
   adminOff:"Admin način zaključan", pinChanged:"PIN promijenjen", newPinPrompt:"Unesi NOVI 4-cifreni PIN:",
   keyPrompt:"Zalijepi Gemini API ključ:", keySaved:"Ključ sačuvan",
-  matSaved:"Unos materijala sačuvan", matSaving:"Čuvam", matSavedErr:"Čuvanje nije uspjelo — provjeri vezu i pokušaj ponovo", moveErr:"Premještanje nije uspjelo — ništa nije odbijeno, pokušaj ponovo", delErr:"Brisanje nije uspjelo", matFill:"Popuni gradilište i stavku!", aiNoKey:"Prvo u Postavkama sačuvaj Gemini ključ!",
+  matSaved:"Unos materijala sačuvan", matSaving:"Čuvam", loadErr:"Učitavanje podataka nije uspjelo", loadingData:"Učitavam podatke...", matSavedErr:"Čuvanje nije uspjelo — provjeri vezu i pokušaj ponovo", moveErr:"Premještanje nije uspjelo — ništa nije odbijeno, pokušaj ponovo", delErr:"Brisanje nije uspjelo", matFill:"Popuni gradilište i stavku!", aiNoKey:"Prvo u Postavkama sačuvaj Gemini ključ!",
   aiNoFoto:"Prvo slikaj dostavnicu!", aiReading:"AI čita dostavnicu...", aiWait:"sačekaj", aiDone:"Pročitano — provjeri i ispravi podatke!",
   aiErr:"AI čitanje nije uspjelo — unesi ručno.", delMat:"Obrišem unos?", noMat:"Još nema unosa materijala",
   delLoc:"Uklonim lokaciju?", delWorker:"Uklonim radnika?", delTool:"Obrišem alat?",
@@ -1544,7 +1544,32 @@ function invBack(){
 }
 
 // ===== RENDER ALL + INIT =====
-function renderAll(){ renderL(); renderO(); renderSet(); renderMat(); restoreMatDraft(); }
+// naš lasten predpomnilnik (NE Firestore-ov, ta se ne more pokvariti):
+// ob odpiranju takoj pokaže zadnje znane podatke, nato jih posodobi iz oblaka
+function slimDoc(v){ const o={}; for(const k in v){ const x=v[k]; o[k]=(typeof x==="string"&&x.length>50000)?"":x; } return o; }
+let cacheSaveT=null;
+function saveLocalCache(){
+  if(cacheSaveT) clearTimeout(cacheSaveT);
+  cacheSaveT=setTimeout(()=>{
+    try{
+      localStorage.setItem("makan_cache",JSON.stringify({
+        t:Date.now(),
+        lokacije:D.lokacije.map(slimDoc), delavci:D.delavci.map(slimDoc), orodja:D.orodja.map(slimDoc),
+        dogodki:D.dogodki.slice(0,300).map(slimDoc), material:D.material.map(slimDoc), rezervacije:D.rezervacije.map(slimDoc)
+      }));
+    }catch(e){ console.error("localcache:",e); }
+  },400);
+}
+function loadLocalCache(){
+  try{
+    const raw=localStorage.getItem("makan_cache"); if(!raw) return false;
+    const c=JSON.parse(raw);
+    D.lokacije=c.lokacije||[]; D.delavci=c.delavci||[]; D.orodja=c.orodja||[];
+    D.dogodki=c.dogodki||[]; D.material=c.material||[]; D.rezervacije=c.rezervacije||[];
+    return D.lokacije.length>0||D.orodja.length>0||D.material.length>0;
+  }catch(e){ return false; }
+}
+function renderAll(){ renderL(); renderO(); renderSet(); renderMat(); restoreMatDraft(); saveLocalCache(); }
 // obnovi nedokončan vnos materiala po samodejnem popravilu baze
 function restoreMatDraft(){
   const raw=localStorage.getItem("makan_mat_draft"); if(!raw) return;
@@ -1563,7 +1588,9 @@ function restoreMatDraft(){
   }catch(e){ console.error("draft restore:",e); }
 }
 document.querySelectorAll(".modal-overlay").forEach(m=>{ m.addEventListener("click",function(e){ if(e.target===this) this.classList.remove("active"); }); });
-applyTheme(); applyI18n(); applyMode(); listen(); initScan();
+applyTheme(); applyI18n(); applyMode();
+if(loadLocalCache()){ renderAll(); } else { toast("⏳ "+t("loadingData")); }
+listen(); initScan();
 </script>
 <script>
 // Service worker + samodejna posodobitev
