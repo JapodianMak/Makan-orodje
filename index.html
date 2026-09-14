@@ -511,8 +511,8 @@ body.light .tool-display{border-left-color:#1C1917}
 </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, updateDoc, getDocs, terminate } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getFirestore, collection, doc, onSnapshot, addDoc, setDoc, deleteDoc, updateDoc, getDocs, terminate } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDrP4qVf5PgGgQrdVcLwHnMekpgA-_TVy0",
@@ -529,7 +529,7 @@ try{
     indexedDB.databases().then(list=>{ (list||[]).forEach(d=>{ if(d.name && d.name.indexOf("firestore")===0){ try{ indexedDB.deleteDatabase(d.name); }catch(e){} } }); });
   }
 }catch(e){ console.error("indexedDB cleanup:",e); }
-const APP_VERSION="v43";
+const APP_VERSION="v44";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app); // samo pomnilnik — brez lokalnega shranjevanja, brez korupcije
 document.getElementById("app-version").textContent=APP_VERSION;
@@ -583,7 +583,7 @@ sl: {
   delLoc:"Odstranim lokacijo?", delWorker:"Odstranim delavca?", delTool:"Izbrišem orodje?",
   clear1:"POZOR! To bo izbrisalo VSE podatke v bazi (pri VSEH). Si prepričan?", clear2:"Resnično? Tega ni povratka.",
   cleared:"Vsi podatki izbrisani", total:"SKUPAJ", entries:"vnosov", pcs:"kos",
-  diag:"Diagnostika povezave", fixCache:"Popravi lokalno bazo", fixCacheConfirm:"Izbriše lokalno kopijo baze na tem telefonu in jo potegne čisto iz oblaka (podatki v oblaku ostanejo). Gemini ključ, tema in vezava telefona se NE zbrišejo. Nadaljujem?", fixCacheDone:"Baza popravljena — aplikacija se znova nalaga...", matDraftRestored:"Osnutek vnosa obnovljen — samo shrani"
+  diag:"Diagnostika povezave", diagCache:"lokalna kopija — ni povezave", fixCache:"Popravi lokalno bazo", fixCacheConfirm:"Izbriše lokalno kopijo baze na tem telefonu in jo potegne čisto iz oblaka (podatki v oblaku ostanejo). Gemini ključ, tema in vezava telefona se NE zbrišejo. Nadaljujem?", fixCacheDone:"Baza popravljena — aplikacija se znova nalaga...", matDraftRestored:"Osnutek vnosa obnovljen — samo shrani"
 },
 bih: {
   subtitle:"Praćenje alata", scanTitle:"Skeniraj QR kod", scanSub:"Usmjeri kameru na naljepku na alatu",
@@ -631,7 +631,7 @@ bih: {
   delLoc:"Uklonim lokaciju?", delWorker:"Uklonim radnika?", delTool:"Obrišem alat?",
   clear1:"POZOR! Ovo će obrisati SVE podatke u bazi (kod SVIH). Jesi li siguran?", clear2:"Stvarno? Nema povratka.",
   cleared:"Svi podaci obrisani", total:"UKUPNO", entries:"unosa", pcs:"kom",
-  diag:"Dijagnostika veze", fixCache:"Popravi lokalnu bazu", fixCacheConfirm:"Briše lokalnu kopiju baze na ovom telefonu i povlači čistu iz oblaka (podaci u oblaku ostaju). Gemini ključ, tema i veza telefona se NE brišu. Nastaviti?", fixCacheDone:"Baza popravljena — aplikacija se ponovo učitava...", matDraftRestored:"Nacrt unosa vraćen — samo sačuvaj"
+  diag:"Dijagnostika veze", diagCache:"lokalna kopija — nema veze", fixCache:"Popravi lokalnu bazu", fixCacheConfirm:"Briše lokalnu kopiju baze na ovom telefonu i povlači čistu iz oblaka (podaci u oblaku ostaju). Gemini ključ, tema i veza telefona se NE brišu. Nastaviti?", fixCacheDone:"Baza popravljena — aplikacija se ponovo učitava...", matDraftRestored:"Nacrt unosa vraćen — samo sačuvaj"
 }};
 let LANG = localStorage.getItem("makan_lang") || "sl";
 function t(k){ return (T[LANG] && T[LANG][k]) || T.sl[k] || k; }
@@ -661,14 +661,22 @@ function dbStatus(){
   el.innerHTML=names.map(k=>{
     const s=DBST[k];
     if(!s) return "<div style='display:flex;justify-content:space-between;padding:3px 0'><span>"+k+"</span><span style='color:var(--tx2)'>…</span></div>";
+    if(s.ok && s.cache) return "<div style='display:flex;justify-content:space-between;padding:3px 0;gap:8px'><span>"+k+"</span><span style='font-weight:700;color:#e67e22;text-align:right'>◷ "+s.n+" · "+t("diagCache")+"</span></div>";
     if(s.ok) return "<div style='display:flex;justify-content:space-between;padding:3px 0'><span>"+k+"</span><span style='font-weight:700;color:#27ae60'>✓ "+s.n+" · "+s.t+"</span></div>";
     return "<div style='display:flex;justify-content:space-between;padding:3px 0;gap:8px'><span>"+k+"</span><span style='font-weight:700;color:#e74c3c;text-align:right'>✗ "+s.err+"</span></div>";
   }).join("");
 }
 function listen(){
-  const okCb=(name,fn)=>s=>{ DBST[name]={ok:true,n:s.docs?s.docs.length:(s.exists()?1:0),t:new Date().toLocaleTimeString("sl-SI")}; dbStatus(); fn(s); };
+  const okCb=(name,fn)=>s=>{
+    const fromCache=!!(s.metadata&&s.metadata.fromCache);
+    DBST[name]={ok:true,n:s.docs?s.docs.length:(s.exists()?1:0),t:new Date().toLocaleTimeString("sl-SI"),cache:fromCache};
+    dbStatus();
+    // prazen "offline" odgovor naj nikoli ne prepiše podatkov iz našega predpomnilnika
+    if(fromCache && ((D[name]&&D[name].length)||name==="settings")) return;
+    fn(s);
+  };
   const errCb=name=>err=>{ console.error("snapshot "+name+":",err); DBST[name]={ok:false,err:err.code||err.message||String(err)}; dbStatus(); toast("⚠️ "+t("loadErr")+": "+name+" ("+(err.code||err.message||err)+")","error"); };
-  onSnapshot(collection(db,"lokacije"), okCb("lokacije", s=>{ D.lokacije = s.docs.map(d=>({id:d.id,...d.data()})); if(D.lokacije.length===0 && !seeded){ seeded=true; seedLokacije(); } renderAll(); }), errCb("lokacije"));
+  onSnapshot(collection(db,"lokacije"), okCb("lokacije", s=>{ D.lokacije = s.docs.map(d=>({id:d.id,...d.data()})); if(D.lokacije.length===0 && !seeded && !(s.metadata&&s.metadata.fromCache)){ seeded=true; seedLokacije(); } renderAll(); }), errCb("lokacije"));
   onSnapshot(collection(db,"delavci"), okCb("delavci", s=>{ D.delavci = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }), errCb("delavci"));
   onSnapshot(collection(db,"orodja"), okCb("orodja", s=>{ D.orodja = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }), errCb("orodja"));
   onSnapshot(collection(db,"dogodki"), okCb("dogodki", s=>{ D.dogodki = s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")); renderAll(); }), errCb("dogodki"));
