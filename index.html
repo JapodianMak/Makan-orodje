@@ -525,7 +525,7 @@ try{
     indexedDB.databases().then(list=>{ (list||[]).forEach(d=>{ if(d.name && d.name.indexOf("firestore")===0){ try{ indexedDB.deleteDatabase(d.name); }catch(e){} } }); });
   }
 }catch(e){ console.error("indexedDB cleanup:",e); }
-const APP_VERSION="v38";
+const APP_VERSION="v39";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app); // samo pomnilnik — brez lokalnega shranjevanja, brez korupcije
 document.getElementById("app-version").textContent=APP_VERSION;
@@ -573,7 +573,7 @@ sl: {
   boundAs:"Skenira", selectWorker:"Izberi delavca", wrongPin:"Napačen PIN!", adminOn:"Admin način vklopljen",
   adminOff:"Admin način zaklenjen", pinChanged:"PIN spremenjen", newPinPrompt:"Vnesi NOV 4-mestni PIN:",
   keyPrompt:"Prilepi Gemini API ključ:", keySaved:"Ključ shranjen",
-  matSaved:"Vnos materiala shranjen", matSavedErr:"Shranjevanje ni uspelo — preveri povezavo in poskusi znova", moveErr:"Premik ni uspel — nič ni bilo odšteto, poskusi znova", delErr:"Brisanje ni uspelo", matFill:"Izpolni gradbišče in postavko!", aiNoKey:"Najprej v Nastavitvah shrani Gemini ključ!",
+  matSaved:"Vnos materiala shranjen", matSaving:"Shranjujem", matSavedErr:"Shranjevanje ni uspelo — preveri povezavo in poskusi znova", moveErr:"Premik ni uspel — nič ni bilo odšteto, poskusi znova", delErr:"Brisanje ni uspelo", matFill:"Izpolni gradbišče in postavko!", aiNoKey:"Najprej v Nastavitvah shrani Gemini ključ!",
   aiNoFoto:"Najprej slikaj dobavnico!", aiReading:"AI prebira dobavnico...", aiWait:"počakaj", aiDone:"Prebrano — preveri in popravi podatke!",
   aiErr:"AI branje ni uspelo — vpiši ročno.", delMat:"Izbrišem vnos?", noMat:"Še ni vnosov materiala",
   delLoc:"Odstranim lokacijo?", delWorker:"Odstranim delavca?", delTool:"Izbrišem orodje?",
@@ -621,7 +621,7 @@ bih: {
   boundAs:"Skenira", selectWorker:"Odaberi radnika", wrongPin:"Pogrešan PIN!", adminOn:"Admin način uključen",
   adminOff:"Admin način zaključan", pinChanged:"PIN promijenjen", newPinPrompt:"Unesi NOVI 4-cifreni PIN:",
   keyPrompt:"Zalijepi Gemini API ključ:", keySaved:"Ključ sačuvan",
-  matSaved:"Unos materijala sačuvan", matSavedErr:"Čuvanje nije uspjelo — provjeri vezu i pokušaj ponovo", moveErr:"Premještanje nije uspjelo — ništa nije odbijeno, pokušaj ponovo", delErr:"Brisanje nije uspjelo", matFill:"Popuni gradilište i stavku!", aiNoKey:"Prvo u Postavkama sačuvaj Gemini ključ!",
+  matSaved:"Unos materijala sačuvan", matSaving:"Čuvam", matSavedErr:"Čuvanje nije uspjelo — provjeri vezu i pokušaj ponovo", moveErr:"Premještanje nije uspjelo — ništa nije odbijeno, pokušaj ponovo", delErr:"Brisanje nije uspjelo", matFill:"Popuni gradilište i stavku!", aiNoKey:"Prvo u Postavkama sačuvaj Gemini ključ!",
   aiNoFoto:"Prvo slikaj dostavnicu!", aiReading:"AI čita dostavnicu...", aiWait:"sačekaj", aiDone:"Pročitano — provjeri i ispravi podatke!",
   aiErr:"AI čitanje nije uspjelo — unesi ručno.", delMat:"Obrišem unos?", noMat:"Još nema unosa materijala",
   delLoc:"Uklonim lokaciju?", delWorker:"Uklonim radnika?", delTool:"Obrišem alat?",
@@ -1304,44 +1304,58 @@ $("btn-mat-save").addEventListener("click",async ()=>{
   const lok=$("mat-lokacija").value, naziv=$("mat-naziv").value.trim();
   if(!lok||!naziv){ toast(t("matFill"),"error"); return; }
   const editId=matEditId;
-  const base={lokacijaId:lok,datum:new Date().toISOString(),foto:matFotoB64,dobavitelj:$("mat-dobavitelj").value.trim(),dodal:deviceWorker()};
-  const extra=window._matExtra;
   const kol=parseFloat($("mat-kolicina").value)||0, eno=$("mat-enota").value.trim(), cen=parseFloat($("mat-cena").value)||0;
-  closeModal("modal-mat"); toast("📦 "+t("matSaved"));
-  try{
-    if(editId){
-      // urejanje obstoječega vnosa — ohrani staro fotografijo, če ni nove
-      const upd={lokacijaId:lok,naziv,kolicina:kol,enota:eno,cena:cen,dobavitelj:base.dobavitelj};
+  const dob=$("mat-dobavitelj").value.trim();
+  const extra=window._matExtra;
+  if(editId){
+    // urejanje obstoječega vnosa — ohrani staro fotografijo, če ni nove
+    closeModal("modal-mat");
+    try{
+      const upd={lokacijaId:lok,naziv,kolicina:kol,enota:eno,cena:cen,dobavitelj:dob};
       if(matFotoB64) upd.foto=matFotoB64;
       await updateDoc(doc(db,"material",editId),upd);
       matEditId=null; window._matExtra=null;
-      return;
+      toast("✅ "+t("matSaved"));
+    }catch(e){
+      console.error(e);
+      toast("⚠️ "+t("matSavedErr")+" ("+(e.code||e.message||e)+")","error");
+      matEditId=editId; openModal("modal-mat");
     }
-    await addDoc(collection(db,"material"),{...base,naziv,kolicina:kol,enota:eno,cena:cen});
-    if(extra && extra.length){
-      // vsaka postavka posebej — če ena spodleti, veš točno katera
-      const ostale=[];
-      for(const p of extra){
-        const pn=(p.naziv||"").trim();
-        const pk=typeof p.kolicina==="string"?parseFloat(p.kolicina.replace(",",".")):(p.kolicina||0);
-        const pc=typeof p.cenaSkupaj==="string"?parseFloat(p.cenaSkupaj.replace(",",".")):(p.cenaSkupaj||0);
-        try{
-          await addDoc(collection(db,"material"),{...base,naziv:pn,kolicina:pk||0,enota:(p.enota||"")+"",cena:pc||0});
-        }catch(pe){
-          console.error(pe);
-          ostale.push(p);
-          toast("⚠️ "+t("matSavedErr")+": "+pn+" ("+(pe.code||pe.message||pe)+")","error");
-        }
-      }
-      if(ostale.length){ window._matExtra=ostale; openModal("modal-mat"); return; }
+    return;
+  }
+  // zgradi seznam vseh postavk — fotografija samo na prvi (hitreje, manj napak)
+  const items=[{naziv,kolicina:kol,enota:eno,cena:cen,foto:matFotoB64}];
+  (extra||[]).forEach(p=>{
+    items.push({
+      naziv:(p.naziv||"").trim(),
+      kolicina:typeof p.kolicina==="string"?parseFloat(p.kolicina.replace(",",".")):(p.kolicina||0),
+      enota:(p.enota||"")+"",
+      cena:typeof p.cenaSkupaj==="string"?parseFloat(p.cenaSkupaj.replace(",",".")):(p.cenaSkupaj||0),
+      foto:""
+    });
+  });
+  const base={lokacijaId:lok,datum:new Date().toISOString(),dobavitelj:dob,dodal:deviceWorker()};
+  closeModal("modal-mat");
+  const failed=[];
+  for(let i=0;i<items.length;i++){
+    toast("📦 "+t("matSaving")+" "+(i+1)+"/"+items.length+"...");
+    try{
+      await addDoc(collection(db,"material"),{...base,naziv:items[i].naziv,kolicina:items[i].kolicina||0,enota:items[i].enota,cena:items[i].cena||0,foto:items[i].foto});
+    }catch(e){
+      console.error("mat save item:",e);
+      failed.push(items[i]);
     }
-    matEditId=null; window._matExtra=null;
-  }catch(e){
-    console.error(e);
-    // napaka — vrni obrazec z vsemi podatki, da nič ne izgine
-    toast("⚠️ "+t("matSavedErr")+" ("+(e.code||e.message||e)+")","error");
-    if(editId) matEditId=editId;
-    window._matExtra=extra;
+  }
+  if(!failed.length){
+    window._matExtra=null; matFotoB64="";
+    toast("✅ "+t("matSaved")+" "+items.length+"/"+items.length);
+  }else{
+    // obrazec nazaj SAMO z neshranjenimi postavkami — brez dvojnikov
+    toast("⚠️ "+t("matSaved")+" "+(items.length-failed.length)+"/"+items.length+" — "+t("matSavedErr"),"error");
+    $("mat-naziv").value=failed[0].naziv; $("mat-kolicina").value=failed[0].kolicina||"";
+    $("mat-enota").value=failed[0].enota||""; $("mat-cena").value=failed[0].cena||"";
+    window._matExtra=failed.slice(1).map(f=>({naziv:f.naziv,kolicina:f.kolicina,enota:f.enota,cenaSkupaj:f.cena}));
+    matFotoB64=failed[0].foto||"";
     openModal("modal-mat");
   }
 });
