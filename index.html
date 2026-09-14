@@ -525,7 +525,7 @@ try{
     indexedDB.databases().then(list=>{ (list||[]).forEach(d=>{ if(d.name && d.name.indexOf("firestore")===0){ try{ indexedDB.deleteDatabase(d.name); }catch(e){} } }); });
   }
 }catch(e){ console.error("indexedDB cleanup:",e); }
-const APP_VERSION="v40";
+const APP_VERSION="v41";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app); // samo pomnilnik — brez lokalnega shranjevanja, brez korupcije
 document.getElementById("app-version").textContent=APP_VERSION;
@@ -573,7 +573,7 @@ sl: {
   boundAs:"Skenira", selectWorker:"Izberi delavca", wrongPin:"Napačen PIN!", adminOn:"Admin način vklopljen",
   adminOff:"Admin način zaklenjen", pinChanged:"PIN spremenjen", newPinPrompt:"Vnesi NOV 4-mestni PIN:",
   keyPrompt:"Prilepi Gemini API ključ:", keySaved:"Ključ shranjen",
-  matSaved:"Vnos materiala shranjen", matSaving:"Shranjujem", matSavedErr:"Shranjevanje ni uspelo — preveri povezavo in poskusi znova", moveErr:"Premik ni uspel — nič ni bilo odšteto, poskusi znova", delErr:"Brisanje ni uspelo", matFill:"Izpolni gradbišče in postavko!", aiNoKey:"Najprej v Nastavitvah shrani Gemini ključ!",
+  matSaved:"Vnos materiala shranjen", matSaving:"Shranjujem", loadErr:"Nalaganje podatkov ni uspelo", matSavedErr:"Shranjevanje ni uspelo — preveri povezavo in poskusi znova", moveErr:"Premik ni uspel — nič ni bilo odšteto, poskusi znova", delErr:"Brisanje ni uspelo", matFill:"Izpolni gradbišče in postavko!", aiNoKey:"Najprej v Nastavitvah shrani Gemini ključ!",
   aiNoFoto:"Najprej slikaj dobavnico!", aiReading:"AI prebira dobavnico...", aiWait:"počakaj", aiDone:"Prebrano — preveri in popravi podatke!",
   aiErr:"AI branje ni uspelo — vpiši ročno.", delMat:"Izbrišem vnos?", noMat:"Še ni vnosov materiala",
   delLoc:"Odstranim lokacijo?", delWorker:"Odstranim delavca?", delTool:"Izbrišem orodje?",
@@ -651,13 +651,14 @@ let scanner=null, selLoc=null, curTool=null, actTab="all", matTab="all", seeded=
 
 // ===== FIREBASE LISTENERS =====
 function listen(){
-  onSnapshot(collection(db,"lokacije"), s=>{ D.lokacije = s.docs.map(d=>({id:d.id,...d.data()})); if(D.lokacije.length===0 && !seeded){ seeded=true; seedLokacije(); } renderAll(); });
-  onSnapshot(collection(db,"delavci"), s=>{ D.delavci = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); });
-  onSnapshot(collection(db,"orodja"), s=>{ D.orodja = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); });
-  onSnapshot(collection(db,"dogodki"), s=>{ D.dogodki = s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")); renderAll(); });
-  onSnapshot(collection(db,"material"), s=>{ D.material = s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")); renderMat(); });
-  onSnapshot(collection(db,"rezervacije"), s=>{ D.rezervacije = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); });
-  onSnapshot(doc(db,"meta","settings"), s=>{ if(s.exists()) META = {pin:"1234",warnDays:14,...s.data()}; document.getElementById("warn-days").value = META.warnDays||14; renderAll(); });
+  const errCb=name=>err=>{ console.error("snapshot "+name+":",err); toast("⚠️ "+t("loadErr")+": "+name+" ("+(err.code||err.message||err)+")","error"); };
+  onSnapshot(collection(db,"lokacije"), s=>{ D.lokacije = s.docs.map(d=>({id:d.id,...d.data()})); if(D.lokacije.length===0 && !seeded){ seeded=true; seedLokacije(); } renderAll(); }, errCb("lokacije"));
+  onSnapshot(collection(db,"delavci"), s=>{ D.delavci = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }, errCb("delavci"));
+  onSnapshot(collection(db,"orodja"), s=>{ D.orodja = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }, errCb("orodja"));
+  onSnapshot(collection(db,"dogodki"), s=>{ D.dogodki = s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")); renderAll(); }, errCb("dogodki"));
+  onSnapshot(collection(db,"material"), s=>{ D.material = s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")); renderMat(); }, errCb("material"));
+  onSnapshot(collection(db,"rezervacije"), s=>{ D.rezervacije = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }, errCb("rezervacije"));
+  onSnapshot(doc(db,"meta","settings"), s=>{ if(s.exists()) META = {pin:"1234",warnDays:14,...s.data()}; document.getElementById("warn-days").value = META.warnDays||14; renderAll(); }, errCb("settings"));
 }
 async function seedLokacije(){
   await setDoc(doc(db,"lokacije","skladiste"),{naziv:"SKLADIŠTE",default:true});
