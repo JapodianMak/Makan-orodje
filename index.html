@@ -299,6 +299,10 @@ body.light .tool-display{border-left-color:#1C1917}
     <div class="form-group" style="margin-top:12px"><label data-i18n="importLabel">Uvozi JSON (doda podatke v bazo)</label><input type="file" id="import-file" accept=".json"></div>
     <button class="btn btn-outline" id="btn-fix-cache" style="margin-top:12px">🔧 <span data-i18n="fixCache">Popravi lokalno bazo</span></button>
   </div>
+  <div class="card">
+    <div class="card-title" data-i18n="diag">Diagnostika povezave</div>
+    <div id="db-status" style="font-size:0.85rem"></div>
+  </div>
   <div class="danger-zone no-print"><h3>⚠️ <span data-i18n="dangerZone">Nevarno območje</span></h3><button class="btn btn-danger" id="btn-clear">🗑️ <span data-i18n="clearAll">POČISTI VSE PODATKE</span></button></div>
   <div style="text-align:center;color:var(--tx2);font-size:0.8rem;margin:18px 0 6px">MAKAN GP · <span id="app-version"></span></div>
 </div>
@@ -525,7 +529,7 @@ try{
     indexedDB.databases().then(list=>{ (list||[]).forEach(d=>{ if(d.name && d.name.indexOf("firestore")===0){ try{ indexedDB.deleteDatabase(d.name); }catch(e){} } }); });
   }
 }catch(e){ console.error("indexedDB cleanup:",e); }
-const APP_VERSION="v42";
+const APP_VERSION="v43";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app); // samo pomnilnik — brez lokalnega shranjevanja, brez korupcije
 document.getElementById("app-version").textContent=APP_VERSION;
@@ -579,7 +583,7 @@ sl: {
   delLoc:"Odstranim lokacijo?", delWorker:"Odstranim delavca?", delTool:"Izbrišem orodje?",
   clear1:"POZOR! To bo izbrisalo VSE podatke v bazi (pri VSEH). Si prepričan?", clear2:"Resnično? Tega ni povratka.",
   cleared:"Vsi podatki izbrisani", total:"SKUPAJ", entries:"vnosov", pcs:"kos",
-  fixCache:"Popravi lokalno bazo", fixCacheConfirm:"Izbriše lokalno kopijo baze na tem telefonu in jo potegne čisto iz oblaka (podatki v oblaku ostanejo). Gemini ključ, tema in vezava telefona se NE zbrišejo. Nadaljujem?", fixCacheDone:"Baza popravljena — aplikacija se znova nalaga...", matDraftRestored:"Osnutek vnosa obnovljen — samo shrani"
+  diag:"Diagnostika povezave", fixCache:"Popravi lokalno bazo", fixCacheConfirm:"Izbriše lokalno kopijo baze na tem telefonu in jo potegne čisto iz oblaka (podatki v oblaku ostanejo). Gemini ključ, tema in vezava telefona se NE zbrišejo. Nadaljujem?", fixCacheDone:"Baza popravljena — aplikacija se znova nalaga...", matDraftRestored:"Osnutek vnosa obnovljen — samo shrani"
 },
 bih: {
   subtitle:"Praćenje alata", scanTitle:"Skeniraj QR kod", scanSub:"Usmjeri kameru na naljepku na alatu",
@@ -627,7 +631,7 @@ bih: {
   delLoc:"Uklonim lokaciju?", delWorker:"Uklonim radnika?", delTool:"Obrišem alat?",
   clear1:"POZOR! Ovo će obrisati SVE podatke u bazi (kod SVIH). Jesi li siguran?", clear2:"Stvarno? Nema povratka.",
   cleared:"Svi podaci obrisani", total:"UKUPNO", entries:"unosa", pcs:"kom",
-  fixCache:"Popravi lokalnu bazu", fixCacheConfirm:"Briše lokalnu kopiju baze na ovom telefonu i povlači čistu iz oblaka (podaci u oblaku ostaju). Gemini ključ, tema i veza telefona se NE brišu. Nastaviti?", fixCacheDone:"Baza popravljena — aplikacija se ponovo učitava...", matDraftRestored:"Nacrt unosa vraćen — samo sačuvaj"
+  diag:"Dijagnostika veze", fixCache:"Popravi lokalnu bazu", fixCacheConfirm:"Briše lokalnu kopiju baze na ovom telefonu i povlači čistu iz oblaka (podaci u oblaku ostaju). Gemini ključ, tema i veza telefona se NE brišu. Nastaviti?", fixCacheDone:"Baza popravljena — aplikacija se ponovo učitava...", matDraftRestored:"Nacrt unosa vraćen — samo sačuvaj"
 }};
 let LANG = localStorage.getItem("makan_lang") || "sl";
 function t(k){ return (T[LANG] && T[LANG][k]) || T.sl[k] || k; }
@@ -650,15 +654,27 @@ let META = { pin:"1234", warnDays:14 };
 let scanner=null, selLoc=null, curTool=null, actTab="all", matTab="all", seeded=false;
 
 // ===== FIREBASE LISTENERS =====
+const DBST={};
+function dbStatus(){
+  const el=document.getElementById("db-status"); if(!el) return;
+  const names=["lokacije","delavci","orodja","dogodki","material","rezervacije","settings"];
+  el.innerHTML=names.map(k=>{
+    const s=DBST[k];
+    if(!s) return "<div style='display:flex;justify-content:space-between;padding:3px 0'><span>"+k+"</span><span style='color:var(--tx2)'>…</span></div>";
+    if(s.ok) return "<div style='display:flex;justify-content:space-between;padding:3px 0'><span>"+k+"</span><span style='font-weight:700;color:#27ae60'>✓ "+s.n+" · "+s.t+"</span></div>";
+    return "<div style='display:flex;justify-content:space-between;padding:3px 0;gap:8px'><span>"+k+"</span><span style='font-weight:700;color:#e74c3c;text-align:right'>✗ "+s.err+"</span></div>";
+  }).join("");
+}
 function listen(){
-  const errCb=name=>err=>{ console.error("snapshot "+name+":",err); toast("⚠️ "+t("loadErr")+": "+name+" ("+(err.code||err.message||err)+")","error"); };
-  onSnapshot(collection(db,"lokacije"), s=>{ D.lokacije = s.docs.map(d=>({id:d.id,...d.data()})); if(D.lokacije.length===0 && !seeded){ seeded=true; seedLokacije(); } renderAll(); }, errCb("lokacije"));
-  onSnapshot(collection(db,"delavci"), s=>{ D.delavci = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }, errCb("delavci"));
-  onSnapshot(collection(db,"orodja"), s=>{ D.orodja = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }, errCb("orodja"));
-  onSnapshot(collection(db,"dogodki"), s=>{ D.dogodki = s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")); renderAll(); }, errCb("dogodki"));
-  onSnapshot(collection(db,"material"), s=>{ D.material = s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")); renderMat(); }, errCb("material"));
-  onSnapshot(collection(db,"rezervacije"), s=>{ D.rezervacije = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }, errCb("rezervacije"));
-  onSnapshot(doc(db,"meta","settings"), s=>{ if(s.exists()) META = {pin:"1234",warnDays:14,...s.data()}; document.getElementById("warn-days").value = META.warnDays||14; renderAll(); }, errCb("settings"));
+  const okCb=(name,fn)=>s=>{ DBST[name]={ok:true,n:s.docs?s.docs.length:(s.exists()?1:0),t:new Date().toLocaleTimeString("sl-SI")}; dbStatus(); fn(s); };
+  const errCb=name=>err=>{ console.error("snapshot "+name+":",err); DBST[name]={ok:false,err:err.code||err.message||String(err)}; dbStatus(); toast("⚠️ "+t("loadErr")+": "+name+" ("+(err.code||err.message||err)+")","error"); };
+  onSnapshot(collection(db,"lokacije"), okCb("lokacije", s=>{ D.lokacije = s.docs.map(d=>({id:d.id,...d.data()})); if(D.lokacije.length===0 && !seeded){ seeded=true; seedLokacije(); } renderAll(); }), errCb("lokacije"));
+  onSnapshot(collection(db,"delavci"), okCb("delavci", s=>{ D.delavci = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }), errCb("delavci"));
+  onSnapshot(collection(db,"orodja"), okCb("orodja", s=>{ D.orodja = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }), errCb("orodja"));
+  onSnapshot(collection(db,"dogodki"), okCb("dogodki", s=>{ D.dogodki = s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")); renderAll(); }), errCb("dogodki"));
+  onSnapshot(collection(db,"material"), okCb("material", s=>{ D.material = s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.datum||"").localeCompare(a.datum||"")); renderMat(); }), errCb("material"));
+  onSnapshot(collection(db,"rezervacije"), okCb("rezervacije", s=>{ D.rezervacije = s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }), errCb("rezervacije"));
+  onSnapshot(doc(db,"meta","settings"), okCb("settings", s=>{ if(s.exists()) META = {pin:"1234",warnDays:14,...s.data()}; document.getElementById("warn-days").value = META.warnDays||14; renderAll(); }), errCb("settings"));
 }
 async function seedLokacije(){
   await setDoc(doc(db,"lokacije","skladiste"),{naziv:"SKLADIŠTE",default:true});
@@ -1569,7 +1585,7 @@ function loadLocalCache(){
     return D.lokacije.length>0||D.orodja.length>0||D.material.length>0;
   }catch(e){ return false; }
 }
-function renderAll(){ renderL(); renderO(); renderSet(); renderMat(); restoreMatDraft(); saveLocalCache(); }
+function renderAll(){ renderL(); renderO(); renderSet(); renderMat(); restoreMatDraft(); saveLocalCache(); dbStatus(); }
 // obnovi nedokončan vnos materiala po samodejnem popravilu baze
 function restoreMatDraft(){
   const raw=localStorage.getItem("makan_mat_draft"); if(!raw) return;
